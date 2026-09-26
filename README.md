@@ -15,6 +15,17 @@ npm run dev
 
 Open the URL Vite prints (normally <http://localhost:5173>).
 
+## Build and preview
+
+Build the portable static site, then serve it on any host and port:
+
+```bash
+npm run build
+npm run preview -- --host 0.0.0.0 --port 4173
+```
+
+The build output is written to `dist/` and does not depend on a Cyber Kitchen-specific hostname. It can be served by any static host or reverse proxy. For direct links to work, configure the host to fall back to `index.html` for unknown paths; this MVP currently keeps navigation in client state and makes no backend requests.
+
 ## Quality commands
 
 ```bash
