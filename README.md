@@ -6,7 +6,7 @@ The browser client lives in [`arturo-and-artura/cyber-kitchen-web`](https://gith
 
 ## Current state
 
-The backend implementation has not started. The established implementation boundary is one `cyber-kitchen` binary with an HTTP service entry point and a separate administration command family. Product workflows remain API-only.
+The backend implementation has not started. The established implementation uses Go and one `cyber-kitchen` binary with an HTTP service entry point and a separate administration command family. Product workflows remain API-only.
 
 ## Documentation
 

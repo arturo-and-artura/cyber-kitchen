@@ -36,7 +36,7 @@ Product workflows remain API-only. HTTP handlers and administration commands tra
 
 ## Package Boundaries
 
-The first implementation will use the following boundaries:
+The first implementation will use Go and the following package boundaries:
 
 | Path | Responsibility |
 |------|----------------|

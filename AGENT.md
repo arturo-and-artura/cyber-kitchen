@@ -6,7 +6,7 @@ Cyber Kitchen is the backend service for the household meal decision and cooking
 
 ## Architecture
 
-- Build one deployable `cyber-kitchen` binary.
+- Implement the service in Go as one deployable `cyber-kitchen` binary.
 - Expose product capabilities through versioned HTTP APIs invoked by separate client repositories.
 - Put runtime startup under `cyber-kitchen serve` and operational maintenance under `cyber-kitchen admin <command>`; do not build product-facing CLI or TUI flows.
 - Keep domain rules independent from HTTP, CLI, storage, and external AI providers.
