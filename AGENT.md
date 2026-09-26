@@ -1,32 +1,15 @@
 # Cyber Kitchen backend repository guide
 
-## Purpose
+## Working instructions
 
-Cyber Kitchen is the backend service for the household meal decision and cooking product.
-
-## Architecture
-
-- Implement the service in Go as one deployable `cyber-kitchen` binary.
-- Expose product capabilities through versioned HTTP APIs invoked by separate client repositories.
-- Put runtime startup under `cyber-kitchen serve` and operational maintenance under `cyber-kitchen admin <command>`; do not build product-facing CLI or TUI flows.
-- Keep domain rules independent from HTTP, CLI, storage, and external AI providers.
-- Keep admin commands explicit, auditable, safe to retry where practical, and protected by the same authorization boundaries as equivalent service operations.
-- Treat AI output as untrusted input. Validate it before it can affect allergies, inventory, meal history, or other persistent state.
-
-## Package layout
-
-When implementation is added, use these boundaries unless the architecture documentation is updated first:
-
-- `cmd/cyber-kitchen` — binary entry point and command wiring
-- `internal/api` — HTTP transport and versioned contracts
-- `internal/admin` — operational command handlers
-- `internal/domain` — product rules and entities
-- `internal/store` — persistence adapters
-- `internal/ai` — AI provider boundaries and validation
+- Read [the documentation index](.aidoc/INDEX.md) and [backend architecture](.aidoc/architecture/backend.md) before changing service interfaces, package boundaries, persistence, administration commands, or AI integration.
+- Treat the architecture document as canonical for the implementation stack, runtime interfaces, package boundaries, and cross-cutting invariants. Update it before making an intentional architecture change.
+- Keep domain behavior independent from HTTP, CLI, storage, and external AI providers.
+- Keep API and administration entry points thin, and validate untrusted external output before it can affect household constraints or persistent state.
 
 ## Definition of done
 
-Changes must include focused tests for domain behavior, keep API and admin entry points thin, update relevant architecture documentation, and pass formatting, static analysis, tests, and build verification. Add integration tests when a change crosses transport or persistence boundaries.
+Changes must include focused tests for domain behavior, update relevant architecture documentation, and pass formatting, static analysis, tests, and build verification. Add integration tests when a change crosses transport or persistence boundaries.
 
 ## Delivery policy
 
