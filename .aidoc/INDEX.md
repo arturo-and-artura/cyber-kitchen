@@ -1,12 +1,24 @@
-# Cyber Kitchen backend documentation index
+---
+domain: Architecture
+status: Active
+entry_points: []
+dependencies:
+  - architecture/backend.md
+---
 
-## Architecture
+# Cyber Kitchen backend documentation
 
-- [`../docs/backend-architecture.md`](../docs/backend-architecture.md) — language decision, deployable binary, API/admin split, and initial package boundaries.
+This index is the canonical entry point for documentation about the backend product and its implementation boundaries. Read the architecture document before changing service interfaces or adding the initial code structure.
 
-## Repository operation
+## Documentation map
 
-- [`../README.md`](../README.md) — repository purpose and current status.
-- [`../AGENT.md`](../AGENT.md) — implementation conventions, decision roles, definition of done, and delivery boundaries.
+| Document | Purpose |
+|----------|---------|
+| [Backend architecture](architecture/backend.md) | Defines repository ownership, runtime interfaces, package boundaries, and cross-cutting safety constraints. |
+| [Repository guide](../AGENT.md) | Defines active implementation and delivery instructions. |
+| [README](../README.md) | Summarizes repository purpose and current implementation state. |
 
-Update the architecture document when the API boundary, command structure, persistence strategy, or AI-provider boundary changes.
+## Reading chains
+
+- **Begin backend implementation:** [Backend architecture](architecture/backend.md) → [Repository guide](../AGENT.md)
+- **Change an API, command, storage, or AI boundary:** [Backend architecture](architecture/backend.md) → relevant implementation code
