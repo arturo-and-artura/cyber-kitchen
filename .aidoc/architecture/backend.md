@@ -47,7 +47,7 @@ The implementation uses Go and the following package boundaries:
 | `internal/api` | HTTP transport and versioned contracts |
 | `internal/admin` | Future operational command handlers |
 | `internal/domain` | Product rules and entities |
-| `internal/store` | Persistence ports and adapters; currently an atomic in-memory adapter |
+| `internal/store` | Persistence ports and adapters; the service uses an atomic file-backed adapter and retains an in-memory adapter for focused tests |
 | `internal/seed` | Initial household, inventory, meal, and history fixture data |
 | `internal/ai` | Future AI provider ports, validation, and fallbacks |
 
@@ -66,11 +66,13 @@ The service currently exposes JSON over these routes:
 
 All collection fields are JSON arrays, including when empty. Clients assemble application state from the four resource reads; there is no aggregate state endpoint. Meal confirmation is one atomic store operation. It finds the meal by path ID, subtracts each recipe ingredient from the corresponding inventory item without allowing a negative amount, prepends a timestamped history record, and clears `selectedMealId`. The success response is built from the committed state returned by that operation. Invalid ratings and unknown meals leave state unchanged. Unknown JSON fields are rejected, and transport errors retain the `{"error":string}` contract.
 
-The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. State is process-local and resets when the service restarts.
+The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. On first launch, the file-backed store writes that seed to the configured data file. Every successful domain update is encoded to a protected temporary file and atomically renamed over the active file before the new in-memory snapshot becomes visible. A rejected or failed write leaves both the published snapshot and the prior data file unchanged. A later service process loads the committed file rather than reseeding.
+
+The persisted file is an internal adapter format, not a public contract. During development it may change together with the current code and data; migration or compatibility behavior belongs only to a future production persistence design.
 
 ## Runtime Configuration
 
-`cyber-kitchen serve` accepts `-listen` and `-cors-origins`. Their environment equivalents are `CYBER_KITCHEN_LISTEN` (default `:8080`) and `CYBER_KITCHEN_CORS_ORIGINS` (default `http://localhost:5173`). The origins value is a comma-separated allowlist; `*` enables a wildcard response. CORS applies at the HTTP adapter only.
+`cyber-kitchen serve` accepts `-listen`, `-cors-origins`, and `-data-file`. Their environment equivalents are `CYBER_KITCHEN_LISTEN` (default `:8080`), `CYBER_KITCHEN_CORS_ORIGINS` (default `http://localhost:5173`), and `CYBER_KITCHEN_DATA_FILE` (default `data/cyber-kitchen.json`). The origins value is a comma-separated allowlist; `*` enables a wildcard response. CORS applies at the HTTP adapter only.
 
 Dependencies point inward toward domain behavior. Persistence engines, external providers, and command frameworks remain adapters rather than domain dependencies.
 

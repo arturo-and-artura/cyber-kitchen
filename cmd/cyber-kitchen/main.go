@@ -28,10 +28,14 @@ func main() {
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	listenAddress := flags.String("listen", envOr("CYBER_KITCHEN_LISTEN", ":8080"), "HTTP listen address")
 	corsOrigins := flags.String("cors-origins", envOr("CYBER_KITCHEN_CORS_ORIGINS", "http://localhost:5173"), "comma-separated allowed CORS origins")
+	dataFile := flags.String("data-file", envOr("CYBER_KITCHEN_DATA_FILE", "data/cyber-kitchen.json"), "persistent kitchen state file")
 	_ = flags.Parse(os.Args[2:])
 
-	memory := store.NewMemory(seed.InitialState())
-	service := domain.NewService(memory, time.Now, func() string {
+	fileStore, err := store.NewFile(*dataFile, seed.InitialState())
+	if err != nil {
+		log.Fatalf("open kitchen state: %v", err)
+	}
+	service := domain.NewService(fileStore, time.Now, func() string {
 		return fmt.Sprintf("history-%d", time.Now().UnixNano())
 	})
 	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)})

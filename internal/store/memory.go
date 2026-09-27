@@ -35,17 +35,17 @@ func (m *Memory) Update(change func(*domain.State) error) (domain.State, error) 
 
 func cloneState(state domain.State) domain.State {
 	clone := state
-	clone.Household.Members = append([]domain.HouseholdMember(nil), state.Household.Members...)
-	clone.Household.Constraints = append([]string(nil), state.Household.Constraints...)
-	clone.Household.Goals = append([]string(nil), state.Household.Goals...)
-	clone.Inventory = append([]domain.InventoryItem(nil), state.Inventory...)
-	clone.History = append([]domain.HistoryEntry(nil), state.History...)
+	clone.Household.Members = append([]domain.HouseholdMember{}, state.Household.Members...)
+	clone.Household.Constraints = append([]string{}, state.Household.Constraints...)
+	clone.Household.Goals = append([]string{}, state.Household.Goals...)
+	clone.Inventory = append([]domain.InventoryItem{}, state.Inventory...)
+	clone.History = append([]domain.HistoryEntry{}, state.History...)
 	clone.Meals = make([]domain.Meal, len(state.Meals))
 	for i, meal := range state.Meals {
 		clone.Meals[i] = meal
-		clone.Meals[i].Tags = append([]string(nil), meal.Tags...)
-		clone.Meals[i].Ingredients = append([]domain.MealIngredient(nil), meal.Ingredients...)
-		clone.Meals[i].Steps = append([]string(nil), meal.Steps...)
+		clone.Meals[i].Tags = append([]string{}, meal.Tags...)
+		clone.Meals[i].Ingredients = append([]domain.MealIngredient{}, meal.Ingredients...)
+		clone.Meals[i].Steps = append([]string{}, meal.Steps...)
 	}
 	if state.SelectedMealID != nil {
 		selected := *state.SelectedMealID
