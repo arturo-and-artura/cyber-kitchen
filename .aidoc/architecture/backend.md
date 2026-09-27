@@ -47,7 +47,7 @@ The implementation uses Go and the following package boundaries:
 | `internal/api` | HTTP transport and versioned contracts |
 | `internal/admin` | Future operational command handlers |
 | `internal/domain` | Product rules and entities |
-| `internal/store` | Persistence ports and adapters; currently an atomic in-memory adapter |
+| `internal/store` | Persistence ports and adapters; the service uses SQLite and retains an in-memory adapter for focused tests |
 | `internal/seed` | Initial household, inventory, meal, and history fixture data |
 | `internal/ai` | Future AI provider ports, validation, and fallbacks |
 
@@ -66,11 +66,13 @@ The service currently exposes JSON over these routes:
 
 All collection fields are JSON arrays, including when empty. Clients assemble application state from the four resource reads; there is no aggregate state endpoint. Meal confirmation is one atomic store operation. It finds the meal by path ID, subtracts each recipe ingredient from the corresponding inventory item without allowing a negative amount, prepends a timestamped history record, and clears `selectedMealId`. The success response is built from the committed state returned by that operation. Invalid ratings and unknown meals leave state unchanged. Unknown JSON fields are rejected, and transport errors retain the `{"error":string}` contract.
 
-The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. State is process-local and resets when the service restarts.
+The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. On first launch, the SQLite adapter creates a protected database and seeds normalized tables for the household, inventory, meals, and history. Ordered child tables preserve members, constraints, goals, meal tags, ingredients, and steps; a singleton application-state row owns the selected meal. Every accepted domain update replaces the complete persisted snapshot inside one SQL transaction before the new in-memory snapshot becomes visible. Meal confirmation therefore commits its inventory deductions, history entry, and selection change atomically. A rejected change or failed transaction leaves both the published snapshot and database unchanged. A later service process loads the committed relational state rather than reseeding.
+
+The SQLite schema is internal rather than a public contract. During development it may change together with the current code and data; migration or compatibility behavior is intentionally omitted until production requirements exist.
 
 ## Runtime Configuration
 
-`cyber-kitchen serve` accepts `-listen` and `-cors-origins`. Their environment equivalents are `CYBER_KITCHEN_LISTEN` (default `:8080`) and `CYBER_KITCHEN_CORS_ORIGINS` (default `http://localhost:5173`). The origins value is a comma-separated allowlist; `*` enables a wildcard response. CORS applies at the HTTP adapter only.
+`cyber-kitchen serve` accepts `-listen`, `-cors-origins`, and `-database`. Their environment equivalents are `CYBER_KITCHEN_LISTEN` (default `:8080`), `CYBER_KITCHEN_CORS_ORIGINS` (default `http://localhost:5173`), and `CYBER_KITCHEN_DATABASE` (default `data/cyber-kitchen.db`). The origins value is a comma-separated allowlist; `*` enables a wildcard response. CORS applies at the HTTP adapter only.
 
 Dependencies point inward toward domain behavior. Persistence engines, external providers, and command frameworks remain adapters rather than domain dependencies.
 

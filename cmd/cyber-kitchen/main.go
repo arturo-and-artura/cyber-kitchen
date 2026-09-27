@@ -28,10 +28,19 @@ func main() {
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	listenAddress := flags.String("listen", envOr("CYBER_KITCHEN_LISTEN", ":8080"), "HTTP listen address")
 	corsOrigins := flags.String("cors-origins", envOr("CYBER_KITCHEN_CORS_ORIGINS", "http://localhost:5173"), "comma-separated allowed CORS origins")
+	databasePath := flags.String("database", envOr("CYBER_KITCHEN_DATABASE", "data/cyber-kitchen.db"), "SQLite database path")
 	_ = flags.Parse(os.Args[2:])
 
-	memory := store.NewMemory(seed.InitialState())
-	service := domain.NewService(memory, time.Now, func() string {
+	sqliteStore, err := store.NewSQLite(*databasePath, seed.InitialState())
+	if err != nil {
+		log.Fatalf("open kitchen database: %v", err)
+	}
+	defer func() {
+		if err := sqliteStore.Close(); err != nil {
+			log.Printf("close kitchen database: %v", err)
+		}
+	}()
+	service := domain.NewService(sqliteStore, time.Now, func() string {
 		return fmt.Sprintf("history-%d", time.Now().UnixNano())
 	})
 	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)})

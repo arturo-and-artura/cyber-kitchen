@@ -12,14 +12,14 @@ Go 1.24 or newer is required.
 go run ./cmd/cyber-kitchen serve
 ```
 
-The service listens on `:8080` and allows `http://localhost:5173` by default. Override either setting with flags or environment variables:
+The service listens on `:8080`, allows `http://localhost:5173`, and persists state to `data/cyber-kitchen.db` by default. Override these settings with flags or environment variables:
 
 ```sh
-go run ./cmd/cyber-kitchen serve -listen=:9090 -cors-origins=http://localhost:3000,http://localhost:5173
-# or CYBER_KITCHEN_LISTEN=:9090 CYBER_KITCHEN_CORS_ORIGINS=http://localhost:3000
+go run ./cmd/cyber-kitchen serve -listen=:9090 -cors-origins=http://localhost:3000,http://localhost:5173 -database=/tmp/cyber-kitchen.db
+# or CYBER_KITCHEN_LISTEN=:9090 CYBER_KITCHEN_CORS_ORIGINS=http://localhost:3000 CYBER_KITCHEN_DATABASE=/tmp/cyber-kitchen.db
 ```
 
-State is currently in memory and starts from the frontend MVP fixture on each process launch.
+The SQLite database is created from the MVP seed on first launch. Successful meal confirmations commit inventory, history, and selection changes in one transaction and remain available after a service restart.
 
 ## API
 
