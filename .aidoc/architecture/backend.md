@@ -62,10 +62,9 @@ The service currently exposes JSON over these routes:
 | `GET /api/v1/inventory` | `{"inventory":[{"id":string,"name":string,"amount":number,"unit":string,"category":string,"lowAt":number}]}` |
 | `GET /api/v1/meals` | `{"meals":[...],"selectedMealId":string|null}`; each meal includes its display metadata, tags, ingredients, and steps. |
 | `GET /api/v1/history` | `{"history":[{"id":string,"mealId":string,"mealName":string,"emoji":string,"cookedAt":string,"rating":string,"note":string}]}`; `cookedAt` is UTC RFC 3339 with millisecond precision. |
-| `GET /api/v1/state` | Compatibility aggregate containing `household`, `inventory`, `meals`, `history`, and nullable `selectedMealId`; new clients should use the resource routes. |
 | `POST /api/v1/meals/{id}/confirm` | Accepts `{"rating":"loved|okay|not-for-us","note":"..."}` and returns only `{"inventory":[...],"history":[...],"selectedMealId":string|null}` after commit. |
 
-All collection fields are JSON arrays, including when empty. Meal confirmation is one atomic store operation. It finds the meal by path ID, subtracts each recipe ingredient from the corresponding inventory item without allowing a negative amount, prepends a timestamped history record, and clears `selectedMealId`. The success response is built from the committed state returned by that operation. Invalid ratings and unknown meals leave state unchanged. Unknown JSON fields are rejected, and transport errors retain the `{"error":string}` contract.
+All collection fields are JSON arrays, including when empty. Clients assemble application state from the four resource reads; there is no aggregate state endpoint. Meal confirmation is one atomic store operation. It finds the meal by path ID, subtracts each recipe ingredient from the corresponding inventory item without allowing a negative amount, prepends a timestamped history record, and clears `selectedMealId`. The success response is built from the committed state returned by that operation. Invalid ratings and unknown meals leave state unchanged. Unknown JSON fields are rejected, and transport errors retain the `{"error":string}` contract.
 
 The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. State is process-local and resets when the service restarts.
 

@@ -28,10 +28,9 @@ State is currently in memory and starts from the frontend MVP fixture on each pr
 - `GET /api/v1/inventory` — inventory collection in `{"inventory": [...]}`
 - `GET /api/v1/meals` — candidate meals and nullable selection in `{"meals": [...], "selectedMealId": null}`
 - `GET /api/v1/history` — meal history in `{"history": [...]}`
-- `GET /api/v1/state` — temporary compatibility aggregate for existing clients
 - `POST /api/v1/meals/{id}/confirm` — confirm a meal with JSON `{"rating":"loved|okay|not-for-us","note":"optional text"}`
 
-A successful confirmation returns only the committed `inventory`, `history`, and nullable `selectedMealId`. Inventory deductions, the new first history entry, and selection clearing happen atomically; inventory quantities cannot fall below zero. See the [backend architecture](.aidoc/architecture/backend.md#implemented-http-contract) for field-level contracts.
+Clients assemble application state from the four resource reads; the service does not expose an aggregate state endpoint. A successful confirmation returns only the committed `inventory`, `history`, and nullable `selectedMealId`. Inventory deductions, the new first history entry, and selection clearing happen atomically; inventory quantities cannot fall below zero. See the [backend architecture](.aidoc/architecture/backend.md#implemented-http-contract) for field-level contracts.
 
 ## Verify
 

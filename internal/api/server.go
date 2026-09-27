@@ -27,7 +27,6 @@ func New(service *domain.Service, config Config) *Server {
 	mux.HandleFunc("GET /api/v1/inventory", server.getInventory)
 	mux.HandleFunc("GET /api/v1/meals", server.getMeals)
 	mux.HandleFunc("GET /api/v1/history", server.getHistory)
-	mux.HandleFunc("GET /api/v1/state", server.getState)
 	mux.HandleFunc("POST /api/v1/meals/{id}/confirm", server.confirmMeal)
 	server.handler = withCORS(config.AllowedOrigins, mux)
 	return server
@@ -39,10 +38,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 
 func (s *Server) health(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (s *Server) getState(response http.ResponseWriter, _ *http.Request) {
-	writeJSON(response, http.StatusOK, stateResponseFrom(s.service.State()))
 }
 
 func (s *Server) getHousehold(response http.ResponseWriter, _ *http.Request) {
@@ -168,14 +163,6 @@ func writeJSONStatus(response http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(response).Encode(value)
 }
 
-type stateResponse struct {
-	Household      householdResponse   `json:"household"`
-	Inventory      []inventoryResponse `json:"inventory"`
-	Meals          []mealResponse      `json:"meals"`
-	History        []historyResponse   `json:"history"`
-	SelectedMealID *string             `json:"selectedMealId"`
-}
-
 type inventoryReadResponse struct {
 	Inventory []inventoryResponse `json:"inventory"`
 }
@@ -247,16 +234,6 @@ type historyResponse struct {
 	CookedAt string        `json:"cookedAt"`
 	Rating   domain.Rating `json:"rating"`
 	Note     string        `json:"note"`
-}
-
-func stateResponseFrom(state domain.State) stateResponse {
-	return stateResponse{
-		Household:      householdResponseFrom(state.Household),
-		Inventory:      inventoryResponsesFrom(state.Inventory),
-		Meals:          mealResponsesFrom(state.Meals),
-		History:        historyResponsesFrom(state.History),
-		SelectedMealID: state.SelectedMealID,
-	}
 }
 
 func householdResponseFrom(household domain.Household) householdResponse {
