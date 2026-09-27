@@ -1,14 +1,16 @@
 ---
 domain: Architecture
 status: Active
-entry_points: []
+entry_points:
+  - ../cmd/cyber-kitchen/main.go
+  - ../internal/api/server.go
 dependencies:
   - architecture/backend.md
 ---
 
 # Cyber Kitchen backend documentation
 
-This index is the canonical entry point for documentation about the backend product and its implementation boundaries. Read the architecture document before changing service interfaces or adding the initial code structure.
+This index is the canonical entry point for documentation about the backend product and its implementation boundaries. Read the architecture document before changing service interfaces or package structure.
 
 ## Documentation map
 
