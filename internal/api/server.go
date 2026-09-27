@@ -23,6 +23,10 @@ func New(service *domain.Service, config Config) *Server {
 	server := &Server{service: service}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
+	mux.HandleFunc("GET /api/v1/household", server.getHousehold)
+	mux.HandleFunc("GET /api/v1/inventory", server.getInventory)
+	mux.HandleFunc("GET /api/v1/meals", server.getMeals)
+	mux.HandleFunc("GET /api/v1/history", server.getHistory)
 	mux.HandleFunc("GET /api/v1/state", server.getState)
 	mux.HandleFunc("POST /api/v1/meals/{id}/confirm", server.confirmMeal)
 	server.handler = withCORS(config.AllowedOrigins, mux)
@@ -39,6 +43,29 @@ func (s *Server) health(response http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) getState(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, stateResponseFrom(s.service.State()))
+}
+
+func (s *Server) getHousehold(response http.ResponseWriter, _ *http.Request) {
+	state := s.service.State()
+	writeJSON(response, http.StatusOK, householdReadResponse{Household: householdResponseFrom(state.Household)})
+}
+
+func (s *Server) getInventory(response http.ResponseWriter, _ *http.Request) {
+	state := s.service.State()
+	writeJSON(response, http.StatusOK, inventoryReadResponse{Inventory: inventoryResponsesFrom(state.Inventory)})
+}
+
+func (s *Server) getMeals(response http.ResponseWriter, _ *http.Request) {
+	state := s.service.State()
+	writeJSON(response, http.StatusOK, mealsReadResponse{
+		Meals:          mealResponsesFrom(state.Meals),
+		SelectedMealID: state.SelectedMealID,
+	})
+}
+
+func (s *Server) getHistory(response http.ResponseWriter, _ *http.Request) {
+	state := s.service.State()
+	writeJSON(response, http.StatusOK, historyReadResponse{History: historyResponsesFrom(state.History)})
 }
 
 func (s *Server) confirmMeal(response http.ResponseWriter, request *http.Request) {
@@ -75,7 +102,11 @@ func (s *Server) confirmMeal(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(response, http.StatusOK, stateResponseFrom(state))
+	writeJSON(response, http.StatusOK, confirmationResponse{
+		Inventory:      inventoryResponsesFrom(state.Inventory),
+		History:        historyResponsesFrom(state.History),
+		SelectedMealID: state.SelectedMealID,
+	})
 }
 
 func ensureEOF(decoder *json.Decoder) error {
@@ -145,6 +176,29 @@ type stateResponse struct {
 	SelectedMealID *string             `json:"selectedMealId"`
 }
 
+type householdReadResponse struct {
+	Household householdResponse `json:"household"`
+}
+
+type inventoryReadResponse struct {
+	Inventory []inventoryResponse `json:"inventory"`
+}
+
+type mealsReadResponse struct {
+	Meals          []mealResponse `json:"meals"`
+	SelectedMealID *string        `json:"selectedMealId"`
+}
+
+type historyReadResponse struct {
+	History []historyResponse `json:"history"`
+}
+
+type confirmationResponse struct {
+	Inventory      []inventoryResponse `json:"inventory"`
+	History        []historyResponse   `json:"history"`
+	SelectedMealID *string             `json:"selectedMealId"`
+}
+
 type householdMemberResponse struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -200,38 +254,58 @@ type historyResponse struct {
 }
 
 func stateResponseFrom(state domain.State) stateResponse {
-	result := stateResponse{
-		Household: householdResponse{
-			Name:        state.Household.Name,
-			Members:     make([]householdMemberResponse, len(state.Household.Members)),
-			Constraints: state.Household.Constraints,
-			Goals:       state.Household.Goals,
-		},
+	return stateResponse{
+		Household:      householdResponseFrom(state.Household),
+		Inventory:      inventoryResponsesFrom(state.Inventory),
+		Meals:          mealResponsesFrom(state.Meals),
+		History:        historyResponsesFrom(state.History),
 		SelectedMealID: state.SelectedMealID,
-		Inventory:      make([]inventoryResponse, len(state.Inventory)),
-		Meals:          make([]mealResponse, len(state.Meals)),
-		History:        make([]historyResponse, len(state.History)),
 	}
-	for i, member := range state.Household.Members {
-		result.Household.Members[i] = householdMemberResponse{ID: member.ID, Name: member.Name, Initials: member.Initials}
+}
+
+func householdResponseFrom(household domain.Household) householdResponse {
+	result := householdResponse{
+		Name:        household.Name,
+		Members:     make([]householdMemberResponse, len(household.Members)),
+		Constraints: append([]string{}, household.Constraints...),
+		Goals:       append([]string{}, household.Goals...),
 	}
-	for i, item := range state.Inventory {
-		result.Inventory[i] = inventoryResponse{ID: item.ID, Name: item.Name, Amount: item.Amount, Unit: item.Unit, Category: item.Category, LowAt: item.LowAt}
+	for i, member := range household.Members {
+		result.Members[i] = householdMemberResponse{ID: member.ID, Name: member.Name, Initials: member.Initials}
 	}
-	for i, meal := range state.Meals {
-		result.Meals[i] = mealResponse{
+	return result
+}
+
+func inventoryResponsesFrom(inventory []domain.InventoryItem) []inventoryResponse {
+	result := make([]inventoryResponse, len(inventory))
+	for i, item := range inventory {
+		result[i] = inventoryResponse{ID: item.ID, Name: item.Name, Amount: item.Amount, Unit: item.Unit, Category: item.Category, LowAt: item.LowAt}
+	}
+	return result
+}
+
+func mealResponsesFrom(meals []domain.Meal) []mealResponse {
+	result := make([]mealResponse, len(meals))
+	for i, meal := range meals {
+		result[i] = mealResponse{
 			ID: meal.ID, Name: meal.Name, Description: meal.Description, Reason: meal.Reason, Emoji: meal.Emoji,
-			Accent: meal.Accent, Minutes: meal.Minutes, Difficulty: meal.Difficulty, Tags: meal.Tags, Steps: meal.Steps,
+			Accent: meal.Accent, Minutes: meal.Minutes, Difficulty: meal.Difficulty,
+			Tags: append([]string{}, meal.Tags...), Steps: append([]string{}, meal.Steps...),
 			Ingredients: make([]ingredientResponse, len(meal.Ingredients)),
 		}
 		for j, ingredient := range meal.Ingredients {
-			result.Meals[i].Ingredients[j] = ingredientResponse{
+			result[i].Ingredients[j] = ingredientResponse{
 				InventoryID: ingredient.InventoryID, Name: ingredient.Name, Amount: ingredient.Amount, Unit: ingredient.Unit, Optional: ingredient.Optional,
 			}
 		}
 	}
-	for i, entry := range state.History {
-		result.History[i] = historyResponse{
+	return result
+}
+
+func historyResponsesFrom(history []domain.HistoryEntry) []historyResponse {
+	result := make([]historyResponse, len(history))
+	for i, entry := range history {
+		result[i] = historyResponse{
 			ID: entry.ID, MealID: entry.MealID, MealName: entry.MealName, Emoji: entry.Emoji,
 			CookedAt: entry.CookedAt.UTC().Format("2006-01-02T15:04:05.000Z"), Rating: entry.Rating, Note: entry.Note,
 		}
