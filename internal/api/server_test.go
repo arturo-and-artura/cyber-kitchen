@@ -144,19 +144,17 @@ func TestResourceReadAPIs(t *testing.T) {
 		{
 			name:     "household",
 			path:     "/api/v1/household",
-			wantKeys: []string{"household"},
+			wantKeys: []string{"name", "members", "constraints", "goals"},
 			assert: func(t *testing.T, body []byte) {
 				var response struct {
-					Household struct {
-						Name    string            `json:"name"`
-						Members []json.RawMessage `json:"members"`
-					} `json:"household"`
+					Name    string            `json:"name"`
+					Members []json.RawMessage `json:"members"`
 				}
 				if err := json.Unmarshal(body, &response); err != nil {
 					t.Fatalf("decode household: %v", err)
 				}
-				if response.Household.Name == "" || len(response.Household.Members) != 3 {
-					t.Errorf("unexpected household: %#v", response.Household)
+				if response.Name == "" || len(response.Members) != 3 {
+					t.Errorf("unexpected household: %#v", response)
 				}
 			},
 		},

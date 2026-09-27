@@ -24,7 +24,7 @@ State is currently in memory and starts from the frontend MVP fixture on each pr
 ## API
 
 - `GET /healthz` — service health
-- `GET /api/v1/household` — household profile in `{"household": ...}`
+- `GET /api/v1/household` — raw household resource with `name`, `members`, `constraints`, and `goals`
 - `GET /api/v1/inventory` — inventory collection in `{"inventory": [...]}`
 - `GET /api/v1/meals` — candidate meals and nullable selection in `{"meals": [...], "selectedMealId": null}`
 - `GET /api/v1/history` — meal history in `{"history": [...]}`

@@ -58,7 +58,7 @@ The service currently exposes JSON over these routes:
 | Method and path | Stable response contract |
 |-----------------|--------------------------|
 | `GET /healthz` | `{"status":"ok"}` |
-| `GET /api/v1/household` | `{"household":{"name":string,"members":[...],"constraints":[string],"goals":[string]}}` |
+| `GET /api/v1/household` | `{"name":string,"members":[...],"constraints":[string],"goals":[string]}` (the household resource directly, without an envelope) |
 | `GET /api/v1/inventory` | `{"inventory":[{"id":string,"name":string,"amount":number,"unit":string,"category":string,"lowAt":number}]}` |
 | `GET /api/v1/meals` | `{"meals":[...],"selectedMealId":string|null}`; each meal includes its display metadata, tags, ingredients, and steps. |
 | `GET /api/v1/history` | `{"history":[{"id":string,"mealId":string,"mealName":string,"emoji":string,"cookedAt":string,"rating":string,"note":string}]}`; `cookedAt` is UTC RFC 3339 with millisecond precision. |

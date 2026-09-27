@@ -47,7 +47,7 @@ func (s *Server) getState(response http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) getHousehold(response http.ResponseWriter, _ *http.Request) {
 	state := s.service.State()
-	writeJSON(response, http.StatusOK, householdReadResponse{Household: householdResponseFrom(state.Household)})
+	writeJSON(response, http.StatusOK, householdResponseFrom(state.Household))
 }
 
 func (s *Server) getInventory(response http.ResponseWriter, _ *http.Request) {
@@ -174,10 +174,6 @@ type stateResponse struct {
 	Meals          []mealResponse      `json:"meals"`
 	History        []historyResponse   `json:"history"`
 	SelectedMealID *string             `json:"selectedMealId"`
-}
-
-type householdReadResponse struct {
-	Household householdResponse `json:"household"`
 }
 
 type inventoryReadResponse struct {
