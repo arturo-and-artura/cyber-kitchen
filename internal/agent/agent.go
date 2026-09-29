@@ -72,7 +72,11 @@ func BuildPrompt(input Context) string {
 	contextJSON, _ := json.Marshal(input)
 	return "You are Cyber Kitchen, a focused household kitchen-assistance agent. " +
 		"Recommend exactly three safe, practical meals using the supplied household, inventory, and history state. " +
-		"Respect every constraint. Return only JSON matching {\"recommendations\":[Meal,Meal,Meal]}; do not request tools or describe mutations. " +
+		"Respect every constraint. Return only one JSON object matching this exact shape: " +
+		`{"recommendations":[{"id":"unique-kebab-case-id","name":"meal name","description":"short description","reason":"why it fits this household","emoji":"one emoji","accent":"non-empty color name","minutes":30,"difficulty":"Easy","tags":["tag"],"ingredients":[{"inventoryId":"exact inventory item id","name":"ingredient name","amount":1,"unit":"inventory unit"}],"steps":["complete cooking step"]}]}. ` +
+		"The recommendations array must contain exactly three complete meals. Difficulty must be Easy or Medium. " +
+		"Every ingredient must reference an exact supplied inventory id, use a positive amount no greater than the available amount, and must not introduce unlisted ingredients. " +
+		"Do not request tools, use markdown, add unknown fields, or describe mutations. " +
 		"Application context: " + string(contextJSON)
 }
 

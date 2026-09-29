@@ -50,6 +50,25 @@ func TestRunnerReportsModelAndValidationErrors(t *testing.T) {
 	}
 }
 
+func TestBuildPromptDefinesCompleteMealSchemaAndInventoryRules(t *testing.T) {
+	state := seed.InitialState()
+	prompt := BuildPrompt(Context{Inventory: state.Inventory})
+	for _, required := range []string{
+		`"inventoryId":"exact inventory item id"`,
+		`"difficulty":"Easy"`,
+		`"ingredients"`,
+		`"steps"`,
+		"exactly three complete meals",
+		"no greater than the available amount",
+		"must not introduce unlisted ingredients",
+		`"id":"salmon"`,
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("prompt missing %q: %s", required, prompt)
+		}
+	}
+}
+
 func jsonResponse(response Response) ([]byte, error) {
 	return json.Marshal(response)
 }
