@@ -125,12 +125,16 @@ func (s *Server) deleteInventory(response http.ResponseWriter, request *http.Req
 
 func (s *Server) generateRecommendations(response http.ResponseWriter, request *http.Request) {
 	if s.agent == nil {
-		writeError(response, http.StatusServiceUnavailable, "kitchen agent is unavailable")
+		writeCapabilityError(response, http.StatusServiceUnavailable, "ai_recommendations_unavailable", "AI meal recommendations aren't available yet. You can still explore and manage your kitchen.")
 		return
 	}
 	state := s.service.State()
-	meals, source := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
-	state, err := s.service.ReplaceRecommendations(meals)
+	meals, err := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
+	if err != nil {
+		writeCapabilityError(response, http.StatusBadGateway, "ai_recommendation_failed", "We couldn't generate new meal recommendations right now. Your current meals are unchanged; please try again.")
+		return
+	}
+	state, err = s.service.ReplaceRecommendations(meals)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "internal server error")
 		return
@@ -138,7 +142,7 @@ func (s *Server) generateRecommendations(response http.ResponseWriter, request *
 	writeJSON(response, http.StatusOK, struct {
 		Meals  []mealResponse `json:"meals"`
 		Source string         `json:"source"`
-	}{Meals: mealResponsesFrom(state.Meals), Source: source})
+	}{Meals: mealResponsesFrom(state.Meals), Source: "model"})
 }
 
 func decodeBody(response http.ResponseWriter, request *http.Request, destination any) bool {
@@ -247,6 +251,13 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 
 func writeError(response http.ResponseWriter, status int, message string) {
 	writeJSONStatus(response, status, map[string]string{"error": message})
+}
+
+func writeCapabilityError(response http.ResponseWriter, status int, code, message string) {
+	writeJSONStatus(response, status, struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}{Code: code, Message: message})
 }
 
 func writeJSON(response http.ResponseWriter, status int, value any) {

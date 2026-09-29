@@ -10,12 +10,26 @@ Go 1.24+, Docker, and Docker Compose are required.
 
 ```sh
 docker compose up -d --wait
-go run ./cmd/cyber-kitchen serve
+./scripts/serve
 ```
 
-The service listens on `:8080`, allows `http://localhost:5173`, and uses the Compose PostgreSQL database by default. Override these with `CYBER_KITCHEN_LISTEN`, `CYBER_KITCHEN_CORS_ORIGINS`, and `CYBER_KITCHEN_DATABASE_URL`, or the corresponding `-listen`, `-cors-origins`, and `-database-url` flags.
+The service listens on `:8080`, allows `http://localhost:5173`, and uses the Compose PostgreSQL database by default. Override these with `CYBER_KITCHEN_LISTEN`, `CYBER_KITCHEN_CORS_ORIGINS`, and `CYBER_KITCHEN_DATABASE_URL`, or the corresponding `-listen`, `-cors-origins`, and `-database-url` flags. Additional server flags may be passed to `./scripts/serve`.
 
 The development schema is disposable and intentionally has no migration/compatibility layer. Reset it with `docker compose down --volumes`.
+
+### DeepSeek recommendations
+
+Store the DeepSeek API key in the ignored private file used by the development script:
+
+```sh
+mkdir -p .secrets
+chmod 700 .secrets
+${EDITOR:-vi} .secrets/deepseek-api-key
+chmod 600 .secrets/deepseek-api-key
+./scripts/serve
+```
+
+The app remains explorable when AI recommendations are not configured. Household, inventory, meal, history, and health resources work normally; the recommendation endpoint returns a stable error code and a user-facing explanation that the frontend can present. Provider or validation failures return retry guidance without replacing the current meals. `DEEPSEEK_MODEL` defaults to `deepseek-chat`. `DEEPSEEK_BASE_URL` may select a compatible self-hosted endpoint. The key file path may be changed with `-deepseek-api-key-file`; its contents are never logged, persisted, or added to prompts.
 
 ## API
 

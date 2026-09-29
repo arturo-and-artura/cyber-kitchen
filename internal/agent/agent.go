@@ -33,31 +33,34 @@ type Model interface {
 }
 
 type Runner struct {
-	model    Model
-	fallback []domain.Meal
+	model Model
 }
 
-func New(model Model, fallback []domain.Meal) *Runner {
-	return &Runner{model: model, fallback: cloneMeals(fallback)}
+func New(model Model) *Runner {
+	return &Runner{model: model}
 }
 
-func (r *Runner) Recommend(ctx context.Context, input Context) (meals []domain.Meal, source string) {
-	if r.model != nil {
-		payload, err := r.model.Complete(ctx, BuildPrompt(input))
-		if err == nil {
-			var response Response
-			decoder := json.NewDecoder(strings.NewReader(string(payload)))
-			decoder.DisallowUnknownFields()
-			if decoder.Decode(&response) == nil && decodeEOF(decoder) && Validate(response, input.Inventory) == nil {
-				return cloneMeals(response.Recommendations), "model"
-			}
-		}
+func (r *Runner) Recommend(ctx context.Context, input Context) ([]domain.Meal, error) {
+	if r.model == nil {
+		return nil, errors.New("kitchen model is not configured")
 	}
-	fallback := Response{Recommendations: cloneMeals(r.fallback)}
-	if Validate(fallback, input.Inventory) == nil {
-		return fallback.Recommendations, "fallback"
+	payload, err := r.model.Complete(ctx, BuildPrompt(input))
+	if err != nil {
+		return nil, fmt.Errorf("complete kitchen recommendation: %w", err)
 	}
-	return []domain.Meal{}, "fallback"
+	var response Response
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&response); err != nil {
+		return nil, fmt.Errorf("%w: decode JSON: %v", ErrInvalidResponse, err)
+	}
+	if !decodeEOF(decoder) {
+		return nil, fmt.Errorf("%w: response must contain one JSON object", ErrInvalidResponse)
+	}
+	if err := Validate(response, input.Inventory); err != nil {
+		return nil, err
+	}
+	return cloneMeals(response.Recommendations), nil
 }
 
 func decodeEOF(decoder *json.Decoder) bool {
