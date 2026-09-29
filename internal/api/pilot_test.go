@@ -1,6 +1,9 @@
 package api_test
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +17,58 @@ import (
 	"github.com/arturo-and-artura/cyber-kitchen/internal/store"
 )
 
+type modelFunc func(context.Context, string) ([]byte, error)
+
+func (f modelFunc) Complete(ctx context.Context, prompt string) ([]byte, error) {
+	return f(ctx, prompt)
+}
+
+func TestRecommendationCapabilityReturnsFriendlyErrorsWithoutChangingMeals(t *testing.T) {
+	initial := seed.InitialState()
+	tests := []struct {
+		name       string
+		runner     *agent.Runner
+		wantStatus int
+		wantCode   string
+		wantText   string
+	}{
+		{name: "not configured", wantStatus: http.StatusServiceUnavailable, wantCode: "ai_recommendations_unavailable", wantText: "You can still explore and manage your kitchen"},
+		{name: "provider failure", runner: agent.New(modelFunc(func(context.Context, string) ([]byte, error) { return nil, errors.New("provider unavailable") })), wantStatus: http.StatusBadGateway, wantCode: "ai_recommendation_failed", wantText: "current meals are unchanged"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := domain.NewService(store.NewMemory(initial), time.Now, func() string { return "unused" })
+			handler := api.New(service, api.Config{}, test.runner)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/generate", nil))
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+			}
+			var body struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			}
+			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if body.Code != test.wantCode || !strings.Contains(body.Message, test.wantText) {
+				t.Fatalf("response = %#v", body)
+			}
+			if meals := service.State().Meals; len(meals) != len(initial.Meals) || meals[0].ID != initial.Meals[0].ID {
+				t.Fatalf("recommendations changed after capability failure")
+			}
+		})
+	}
+}
+
 func TestPilotEditingRecommendationAndConfirmationFlow(t *testing.T) {
 	initial := seed.InitialState()
 	service := domain.NewService(store.NewMemory(initial), func() time.Time { return time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC) }, func() string { return "history-pilot" })
-	handler := api.New(service, api.Config{}, agent.New(nil, initial.Meals))
+	model := modelFunc(func(context.Context, string) ([]byte, error) {
+		return json.Marshal(agent.Response{Recommendations: initial.Meals})
+	})
+	handler := api.New(service, api.Config{}, agent.New(model))
 
 	requests := []struct {
 		method, path, body string

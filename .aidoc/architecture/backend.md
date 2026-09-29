@@ -34,10 +34,12 @@ Cooking has consequences. Inventory and history changes therefore remain determi
 1. `BuildPrompt` assembles household constraints and goals, current inventory, and history from application-owned state.
 2. A narrow `Model` implementation may produce one JSON document in the predefined `Response` format.
 3. `Validate` requires exactly three complete, uniquely identified meals, known inventory references, available quantities, supported difficulty values, and non-empty cooking steps.
-4. Invalid JSON, unknown fields, provider failure, or unsafe content selects the deterministic fallback without publishing partial model output.
-5. The validated or fallback recommendations are persisted atomically. The model cannot mutate inventory, history, household state, or files and has no tools or persistent session.
+4. Provider failures, invalid JSON, unknown fields, or unsafe content fail the turn without changing the current recommendations.
+5. Validated recommendations are persisted atomically. The model cannot mutate inventory, history, household state, or files and has no tools or persistent session.
 
-The initial pilot intentionally uses the deterministic fallback while a real provider is not configured. A direct stateless provider adapter is the simplest next implementation: it fits the single-turn response contract without Pi RPC's subprocess supervision, sessions, compaction, JSONL event lifecycle, or tool lockdown. Pi should be reconsidered only when a concrete multi-step kitchen workflow benefits from those runtime capabilities.
+The pilot uses one direct DeepSeek adapter for recommendation generation. It implements the stateless `Model` boundary, sends one prompt to the OpenAI-compatible chat-completions API, requests a JSON object, and returns only the assistant content to the strict validator. The runtime reads the key from a private file selected by `-deepseek-api-key-file`; the key remains outside command arguments, process-environment configuration, prompts, logs, and persistence.
+
+This direct adapter fits the single-turn response contract without Pi RPC's subprocess supervision, sessions, compaction, JSONL event lifecycle, or tool lockdown. Pi should be reconsidered only when a concrete multi-step kitchen workflow benefits from those runtime capabilities. Additional providers should implement `Model`; provider selection must not leak into domain or HTTP packages.
 
 ## Package Boundaries
 
@@ -45,7 +47,7 @@ The initial pilot intentionally uses the deterministic fallback while a real pro
 |------|----------------|
 | `cmd/cyber-kitchen` | Binary and runtime wiring |
 | `internal/api` | HTTP transport and versioned contracts |
-| `internal/agent` | Kitchen context/prompt assembly, strict response validation, fallback |
+| `internal/agent` | Kitchen context/prompt assembly and strict response validation |
 | `internal/domain` | Household, inventory, confirmation, and history rules |
 | `internal/store` | PostgreSQL aggregate persistence and in-memory focused-test adapter |
 | `internal/seed` | Disposable development fixture |
@@ -63,7 +65,7 @@ Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or mo
 | `PUT /api/v1/inventory/{id}` | Create or replace one validated item |
 | `DELETE /api/v1/inventory/{id}` | Delete one item |
 | `GET /api/v1/meals` | Read current recommendations |
-| `POST /api/v1/recommendations/generate` | Run one focused agent turn and return recommendations plus `model` or `fallback` source |
+| `POST /api/v1/recommendations/generate` | Run one focused agent turn; unavailable AI capability and provider failures return stable error codes with user-facing messages and leave current recommendations unchanged |
 | `GET /api/v1/history` | Read meal history |
 | `POST /api/v1/meals/{id}/confirm` | Confirm rating/note, deduct inventory, prepend history, and clear selection atomically |
 
@@ -72,6 +74,8 @@ Unknown request fields are rejected. Collection fields are always arrays. Invali
 ## PostgreSQL Development Runtime
 
 `compose.yaml` starts PostgreSQL 17 on loopback with a named local volume. `CYBER_KITCHEN_DATABASE_URL` (or `-database-url`) configures the connection; the default is the Compose development database. `CYBER_KITCHEN_LISTEN` and `CYBER_KITCHEN_CORS_ORIGINS` retain their existing meanings.
+
+`-deepseek-api-key-file` defaults to `.secrets/deepseek-api-key`. An absent or empty file disables AI-backed recommendation generation while household, inventory, meal, history, and health resources remain available. The generation endpoint returns `ai_recommendations_unavailable` with a friendly explanation when that capability is disabled, and `ai_recommendation_failed` with retry guidance after provider or validation failures. `DEEPSEEK_MODEL` defaults to `deepseek-chat`, and `DEEPSEEK_BASE_URL` defaults to the provider's public API origin. The base URL override exists for focused integration testing and compatible self-hosted endpoints.
 
 The disposable pilot schema stores the complete single-household aggregate as JSONB in one singleton row. Each accepted domain change writes the complete next state in one transaction before publishing it in memory. This makes confirmation atomic and restart-safe without migration or compatibility scaffolding. During development, schema changes may require `docker compose down --volumes` and a clean seed.
 

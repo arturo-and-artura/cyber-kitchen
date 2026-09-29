@@ -24,34 +24,29 @@ func TestRunnerAcceptsOnlyValidatedKitchenResponse(t *testing.T) {
 			t.Fatalf("prompt omitted application context or contract")
 		}
 		return valid, nil
-	}), nil)
-	meals, source := runner.Recommend(context.Background(), Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
-	if source != "model" || len(meals) != 3 {
-		t.Fatalf("source=%s meals=%d", source, len(meals))
+	}))
+	meals, err := runner.Recommend(context.Background(), Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
+	if err != nil || len(meals) != 3 {
+		t.Fatalf("meals=%d err=%v", len(meals), err)
 	}
 }
 
-func TestRunnerFallsBackWithoutPublishingInvalidOutput(t *testing.T) {
+func TestRunnerReportsModelAndValidationErrors(t *testing.T) {
 	state := seed.InitialState()
 	valid, _ := jsonResponse(Response{Recommendations: state.Meals})
 	for _, payload := range [][]byte{[]byte(`{"recommendations":[]}`), []byte(`{"recommendations":[],"toolCall":"read"}`), append(valid, []byte(` {}`)...)} {
-		runner := New(modelFunc(func(context.Context, string) ([]byte, error) { return payload, nil }), state.Meals)
-		meals, source := runner.Recommend(context.Background(), Context{Household: state.Household, Inventory: state.Inventory})
-		if source != "fallback" || len(meals) != 3 {
-			t.Fatalf("source=%s meals=%d", source, len(meals))
+		runner := New(modelFunc(func(context.Context, string) ([]byte, error) { return payload, nil }))
+		meals, err := runner.Recommend(context.Background(), Context{Household: state.Household, Inventory: state.Inventory})
+		if !errors.Is(err, ErrInvalidResponse) || meals != nil {
+			t.Fatalf("meals=%v err=%v", meals, err)
 		}
 	}
-	runner := New(modelFunc(func(context.Context, string) ([]byte, error) { return nil, errors.New("offline") }), state.Meals)
-	_, source := runner.Recommend(context.Background(), Context{Inventory: state.Inventory})
-	if source != "fallback" {
-		t.Fatalf("source=%s", source)
+	runner := New(modelFunc(func(context.Context, string) ([]byte, error) { return nil, errors.New("offline") }))
+	if _, err := runner.Recommend(context.Background(), Context{Inventory: state.Inventory}); err == nil {
+		t.Fatalf("provider error was ignored")
 	}
-
-	state.Inventory = state.Inventory[1:]
-	runner = New(nil, state.Meals)
-	meals, source := runner.Recommend(context.Background(), Context{Inventory: state.Inventory})
-	if source != "fallback" || len(meals) != 0 {
-		t.Fatalf("unsafe fallback was published: source=%s meals=%d", source, len(meals))
+	if _, err := New(nil).Recommend(context.Background(), Context{}); err == nil {
+		t.Fatalf("missing model was accepted")
 	}
 }
 
