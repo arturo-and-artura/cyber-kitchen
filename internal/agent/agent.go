@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/arturo-and-artura/cyber-kitchen/internal/domain"
@@ -47,12 +48,21 @@ func (r *Runner) Recommend(ctx context.Context, input Context) (meals []domain.M
 			var response Response
 			decoder := json.NewDecoder(strings.NewReader(string(payload)))
 			decoder.DisallowUnknownFields()
-			if decoder.Decode(&response) == nil && Validate(response, input.Inventory) == nil {
+			if decoder.Decode(&response) == nil && decodeEOF(decoder) && Validate(response, input.Inventory) == nil {
 				return cloneMeals(response.Recommendations), "model"
 			}
 		}
 	}
-	return cloneMeals(r.fallback), "fallback"
+	fallback := Response{Recommendations: cloneMeals(r.fallback)}
+	if Validate(fallback, input.Inventory) == nil {
+		return fallback.Recommendations, "fallback"
+	}
+	return []domain.Meal{}, "fallback"
+}
+
+func decodeEOF(decoder *json.Decoder) bool {
+	var extra any
+	return errors.Is(decoder.Decode(&extra), io.EOF)
 }
 
 func BuildPrompt(input Context) string {

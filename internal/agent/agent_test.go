@@ -33,7 +33,8 @@ func TestRunnerAcceptsOnlyValidatedKitchenResponse(t *testing.T) {
 
 func TestRunnerFallsBackWithoutPublishingInvalidOutput(t *testing.T) {
 	state := seed.InitialState()
-	for _, payload := range [][]byte{[]byte(`{"recommendations":[]}`), []byte(`{"recommendations":[],"toolCall":"read"}`)} {
+	valid, _ := jsonResponse(Response{Recommendations: state.Meals})
+	for _, payload := range [][]byte{[]byte(`{"recommendations":[]}`), []byte(`{"recommendations":[],"toolCall":"read"}`), append(valid, []byte(` {}`)...)} {
 		runner := New(modelFunc(func(context.Context, string) ([]byte, error) { return payload, nil }), state.Meals)
 		meals, source := runner.Recommend(context.Background(), Context{Household: state.Household, Inventory: state.Inventory})
 		if source != "fallback" || len(meals) != 3 {
@@ -44,6 +45,13 @@ func TestRunnerFallsBackWithoutPublishingInvalidOutput(t *testing.T) {
 	_, source := runner.Recommend(context.Background(), Context{Inventory: state.Inventory})
 	if source != "fallback" {
 		t.Fatalf("source=%s", source)
+	}
+
+	state.Inventory = state.Inventory[1:]
+	runner = New(nil, state.Meals)
+	meals, source := runner.Recommend(context.Background(), Context{Inventory: state.Inventory})
+	if source != "fallback" || len(meals) != 0 {
+		t.Fatalf("unsafe fallback was published: source=%s meals=%d", source, len(meals))
 	}
 }
 
