@@ -49,7 +49,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("configure kitchen model: %v", err)
 	}
-	kitchenAgent := agent.New(model)
+	var kitchenAgent *agent.Runner
+	if model != nil {
+		kitchenAgent = agent.New(model)
+	}
 	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)}, kitchenAgent)
 	server := &http.Server{
 		Addr:              *listenAddress,
@@ -75,8 +78,12 @@ func main() {
 }
 
 func configuredModel() (agent.Model, error) {
+	apiKey := os.Getenv("DEEPSEEK_API_KEY")
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, nil
+	}
 	return agent.NewDeepSeekModel(agent.DeepSeekConfig{
-		APIKey:  os.Getenv("DEEPSEEK_API_KEY"),
+		APIKey:  apiKey,
 		BaseURL: envOr("DEEPSEEK_BASE_URL", agent.DefaultDeepSeekBaseURL),
 		Model:   envOr("DEEPSEEK_MODEL", agent.DefaultDeepSeekModel),
 	})

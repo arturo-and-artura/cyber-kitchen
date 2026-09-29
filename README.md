@@ -10,7 +10,7 @@ Go 1.24+, Docker, and Docker Compose are required.
 
 ```sh
 docker compose up -d --wait
-DEEPSEEK_API_KEY='<runtime secret>' go run ./cmd/cyber-kitchen serve
+go run ./cmd/cyber-kitchen serve
 ```
 
 The service listens on `:8080`, allows `http://localhost:5173`, and uses the Compose PostgreSQL database by default. Override these with `CYBER_KITCHEN_LISTEN`, `CYBER_KITCHEN_CORS_ORIGINS`, and `CYBER_KITCHEN_DATABASE_URL`, or the corresponding `-listen`, `-cors-origins`, and `-database-url` flags.
@@ -19,14 +19,14 @@ The development schema is disposable and intentionally has no migration/compatib
 
 ### DeepSeek recommendations
 
-The service requires a DeepSeek API key at startup:
+Set a DeepSeek API key to enable recommendation generation:
 
 ```sh
 DEEPSEEK_API_KEY='<runtime secret>' \
 go run ./cmd/cyber-kitchen serve
 ```
 
-Missing configuration fails startup; recommendation-provider or validation failures return an error without replacing the current meals. `DEEPSEEK_MODEL` defaults to `deepseek-chat`. `DEEPSEEK_BASE_URL` may select a compatible self-hosted endpoint. The key is read only from the process environment; it is not stored, logged, or added to prompts. Do not commit keys or local secret-file paths.
+Without a key, the service still starts and its non-AI resources remain available; recommendation generation returns service unavailable. Recommendation-provider or validation failures return an error without replacing the current meals. `DEEPSEEK_MODEL` defaults to `deepseek-chat`. `DEEPSEEK_BASE_URL` may select a compatible self-hosted endpoint. The key is read only from the process environment; it is not stored, logged, or added to prompts. Do not commit keys or local secret-file paths.
 
 ## API
 
