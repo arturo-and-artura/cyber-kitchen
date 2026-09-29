@@ -244,9 +244,9 @@ func TestInventoryMetadataAPIAndStrictValidation(t *testing.T) {
 	memory := store.NewMemory(seed.InitialState())
 	service := domain.NewService(memory, time.Now, func() string { return "unused" })
 	handler := api.New(service, api.Config{})
-	valid := `{"name":"Brown rice","amount":725.5,"unit":"g","category":"Pantry","lowAt":200,"count":1.5,"countUnit":"bags","storage":"Pantry shelf","recordedOn":"2026-09-29","notes":"Opened package"}`
+	valid := `{"name":"Staple item","amount":725.5,"unit":"g","category":"Dry Goods","lowAt":200,"count":1.5,"countUnit":"bags","storage":"Storage shelf","recordedOn":"2026-09-29","notes":"Opened package"}`
 
-	request := httptest.NewRequest(http.MethodPut, "/api/v1/inventory/brown-rice", strings.NewReader(valid))
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/inventory/staple-item", strings.NewReader(valid))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)

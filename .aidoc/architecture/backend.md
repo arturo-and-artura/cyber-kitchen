@@ -71,7 +71,7 @@ Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or mo
 
 Unknown request fields are rejected. Collection fields are always arrays. Invalid input and unknown resources leave state unchanged.
 
-Household members may record an optional height in centimeters and bounded notes. Inventory keeps `amount`, `unit`, and `lowAt` as the deterministic deduction basis while optionally recording a paired physical `count`/`countUnit`, storage location, `recordedOn` calendar date (`YYYY-MM-DD`), and notes. IDs, names, finite nonnegative quantities, bounded text and collections, member uniqueness, and count-pair coherence are validated before an aggregate update is stored.
+Household members may record an optional height in centimeters and bounded notes. Inventory keeps `amount`, `unit`, and `lowAt` as the deterministic deduction basis while optionally recording a paired physical `count`/`countUnit`, storage location, `recordedOn` calendar date (`YYYY-MM-DD`), and notes. Inventory category is a bounded non-empty label rather than a closed enumeration so clients may introduce useful household-specific groupings. IDs, names, finite nonnegative quantities, bounded text and collections, member uniqueness, and count-pair coherence are validated before an aggregate update is stored.
 
 ## PostgreSQL Development Runtime
 

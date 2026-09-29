@@ -3,6 +3,7 @@ package domain_test
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,7 +64,7 @@ func TestPutInventoryValidatesAndStoresPreciseMetadata(t *testing.T) {
 	memory := store.NewMemory(domain.State{})
 	service := domain.NewService(memory, time.Now, func() string { return "unused" })
 	valid := domain.InventoryItem{
-		ID: "brown-rice", Name: "Brown rice", Amount: 725.5, Unit: "g", Category: "Pantry", LowAt: 200,
+		ID: "staple-item", Name: "Staple item", Amount: 725.5, Unit: "g", Category: "Dry Goods", LowAt: 200,
 		Count: float64Pointer(1.5), CountUnit: "bags", Storage: "Pantry shelf", RecordedOn: "2026-09-29", Notes: "Opened package",
 	}
 	got, err := service.PutInventory(valid)
@@ -76,6 +77,9 @@ func TestPutInventoryValidatesAndStoresPreciseMetadata(t *testing.T) {
 	}
 
 	invalid := []domain.InventoryItem{
+		{ID: "food", Name: "Food", Category: ""},
+		{ID: "food", Name: "Food", Category: " Prepared"},
+		{ID: "food", Name: "Food", Category: strings.Repeat("x", 81)},
 		{ID: "bad id", Name: "Food", Category: "Pantry"},
 		{ID: "food", Name: " Food", Category: "Pantry"},
 		{ID: "food", Name: "Food", Amount: math.NaN(), Category: "Pantry"},

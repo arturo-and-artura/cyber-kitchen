@@ -132,7 +132,8 @@ func validStrings(values []string, maxItems, maxLength int) bool {
 func validInventory(item InventoryItem) bool {
 	if !validID.MatchString(item.ID) || !validRequiredString(item.Name, maxNameLength) ||
 		!finiteNonnegative(item.Amount) || !finiteNonnegative(item.LowAt) ||
-		!validOptionalString(item.Unit, maxShortLength) || !validOptionalString(item.CountUnit, maxShortLength) ||
+		!validOptionalString(item.Unit, maxShortLength) || !validRequiredString(item.Category, maxShortLength) ||
+		!validOptionalString(item.CountUnit, maxShortLength) ||
 		!validOptionalString(item.Storage, maxNameLength) || !validOptionalString(item.Notes, maxTextLength) {
 		return false
 	}
@@ -151,11 +152,7 @@ func validInventory(item InventoryItem) bool {
 	if strings.TrimSpace(item.RecordedOn) != item.RecordedOn {
 		return false
 	}
-	switch item.Category {
-	case "Produce", "Protein", "Pantry", "Dairy":
-		return true
-	}
-	return false
+	return true
 }
 
 func validRequiredString(value string, maxLength int) bool {
