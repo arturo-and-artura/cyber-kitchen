@@ -1,36 +1,33 @@
 # Cyber Kitchen Backend
 
-The Go backend for Cyber Kitchen. It serves the household state and owns inventory and meal-history updates independently of any client UI.
+The Go service for Cyber Kitchen's single-household kitchen-assistance agent. It owns PostgreSQL state, assembles focused recommendation context, validates the predefined agent response, and keeps inventory/history mutations deterministic and user-confirmed.
 
 The browser client lives in [`arturo-and-artura/cyber-kitchen-web`](https://github.com/arturo-and-artura/cyber-kitchen-web).
 
 ## Run locally
 
-Go 1.24 or newer is required.
+Go 1.24+, Docker, and Docker Compose are required.
 
 ```sh
+docker compose up -d --wait
 go run ./cmd/cyber-kitchen serve
 ```
 
-The service listens on `:8080`, allows `http://localhost:5173`, and persists state to `data/cyber-kitchen.db` by default. Override these settings with flags or environment variables:
+The service listens on `:8080`, allows `http://localhost:5173`, and uses the Compose PostgreSQL database by default. Override these with `CYBER_KITCHEN_LISTEN`, `CYBER_KITCHEN_CORS_ORIGINS`, and `CYBER_KITCHEN_DATABASE_URL`, or the corresponding `-listen`, `-cors-origins`, and `-database-url` flags.
 
-```sh
-go run ./cmd/cyber-kitchen serve -listen=:9090 -cors-origins=http://localhost:3000,http://localhost:5173 -database=/tmp/cyber-kitchen.db
-# or CYBER_KITCHEN_LISTEN=:9090 CYBER_KITCHEN_CORS_ORIGINS=http://localhost:3000 CYBER_KITCHEN_DATABASE=/tmp/cyber-kitchen.db
-```
-
-The SQLite database is created from the MVP seed on first launch. Successful meal confirmations commit inventory, history, and selection changes in one transaction and remain available after a service restart.
+The development schema is disposable and intentionally has no migration/compatibility layer. Reset it with `docker compose down --volumes`.
 
 ## API
 
-- `GET /healthz` — service health
-- `GET /api/v1/household` — raw household resource with `name`, `members`, `constraints`, and `goals`
-- `GET /api/v1/inventory` — inventory collection in `{"inventory": [...]}`
-- `GET /api/v1/meals` — candidate meals and nullable selection in `{"meals": [...], "selectedMealId": null}`
-- `GET /api/v1/history` — meal history in `{"history": [...]}`
-- `POST /api/v1/meals/{id}/confirm` — confirm a meal with JSON `{"rating":"loved|okay|not-for-us","note":"optional text"}`
+Resource reads are available at `/api/v1/household`, `/api/v1/inventory`, `/api/v1/meals`, and `/api/v1/history`. The pilot also supports:
 
-Clients assemble application state from the four resource reads; the service does not expose an aggregate state endpoint. A successful confirmation returns only the committed `inventory`, `history`, and nullable `selectedMealId`. Inventory deductions, the new first history entry, and selection clearing happen atomically; inventory quantities cannot fall below zero. See the [backend architecture](.aidoc/architecture/backend.md#implemented-http-contract) for field-level contracts.
+- `PUT /api/v1/household` — replace constraints and goals
+- `PUT /api/v1/inventory/{id}` — create or replace an inventory item
+- `DELETE /api/v1/inventory/{id}` — delete an inventory item
+- `POST /api/v1/recommendations/generate` — run one focused kitchen-agent turn
+- `POST /api/v1/meals/{id}/confirm` — atomically commit the explicit meal confirmation
+
+See the [backend architecture](.aidoc/architecture/backend.md#http-contract) for boundaries and safety invariants.
 
 ## Verify
 
@@ -39,10 +36,11 @@ gofmt -w cmd internal
 go vet ./...
 go test ./...
 go build ./cmd/cyber-kitchen
+CYBER_KITCHEN_TEST_DATABASE_URL='postgres://cyber_kitchen:cyber_kitchen@localhost:5432/cyber_kitchen?sslmode=disable' go test ./internal/store -run TestPostgres
 ```
 
 ## Documentation
 
-- [Backend architecture](.aidoc/architecture/backend.md) — service boundary, API contract, package boundaries, and runtime configuration
-- [Documentation index](.aidoc/INDEX.md) — canonical reading paths
-- [Repository guide](AGENT.md) — implementation and delivery rules
+- [Backend architecture](.aidoc/architecture/backend.md)
+- [Documentation index](.aidoc/INDEX.md)
+- [Repository guide](AGENT.md)

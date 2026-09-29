@@ -4,6 +4,7 @@ status: Active
 entry_points:
   - cmd/cyber-kitchen/main.go
   - internal/api/server.go
+  - internal/agent/agent.go
   - internal/domain/service.go
 dependencies:
   - ../INDEX.md
@@ -11,7 +12,7 @@ dependencies:
 
 # Backend architecture
 
-Cyber Kitchen uses a single backend service to keep household meal rules consistent across clients. This document defines the intended service boundaries that implementation must preserve as the backend is introduced.
+Cyber Kitchen is a focused kitchen-assistance agent backed by deterministic application services. The application assembles household state for each agent turn, accepts only a predefined validated response, and keeps every persistent mutation outside model authority.
 
 ## Related Docs
 
@@ -22,64 +23,63 @@ Cyber Kitchen uses a single backend service to keep household meal rules consist
 
 ## Why the Backend Exists
 
-Cyber Kitchen needs one authoritative place for product APIs, domain rules, persistence, background work, and operational administration. Keeping those responsibilities behind a versioned HTTP boundary lets browser and future clients share behavior without sharing deployable source.
+One backend owns the single-household pilot's state, kitchen-agent turn, safety validation, and mutations. Browser clients consume versioned HTTP resources; they do not duplicate persistence or recommendation policy.
 
-The backend boundary protects household constraints and persistent state from transport details and untrusted external output. Allergy rules, inventory changes, and meal history remain domain concerns regardless of which client or provider initiates a request.
+Cooking has consequences. Inventory and history changes therefore remain deterministic domain operations that occur only after explicit user confirmation. Agent output may replace recommendations only after structural and inventory-safety validation.
 
-## What the Backend Owns
+## Focused Agent Runtime
 
-The `cyber-kitchen` repository owns the server and operational administration. Client repositories own their presentation code and consume versioned HTTP APIs.
+`internal/agent.Runner` is the runtime boundary for one stateless kitchen-assistance turn:
 
-One `cyber-kitchen` binary owns the runtime interfaces:
+1. `BuildPrompt` assembles household constraints and goals, current inventory, and history from application-owned state.
+2. A narrow `Model` implementation may produce one JSON document in the predefined `Response` format.
+3. `Validate` requires exactly three complete, uniquely identified meals, known inventory references, available quantities, supported difficulty values, and non-empty cooking steps.
+4. Invalid JSON, unknown fields, provider failure, or unsafe content selects the deterministic fallback without publishing partial model output.
+5. The validated or fallback recommendations are persisted atomically. The model cannot mutate inventory, history, household state, or files and has no tools or persistent session.
 
-- `cyber-kitchen serve` currently runs the versioned HTTP API.
-- `cyber-kitchen admin <command>` is reserved for future maintenance operations such as migrations, inspection, repair, or backfills.
-
-Product workflows remain API-only. HTTP handlers—and future administration commands—translate inputs and outputs while shared application and domain services own business behavior.
+The initial pilot intentionally uses the deterministic fallback while a real provider is not configured. A direct stateless provider adapter is the simplest next implementation: it fits the single-turn response contract without Pi RPC's subprocess supervision, sessions, compaction, JSONL event lifecycle, or tool lockdown. Pi should be reconsidered only when a concrete multi-step kitchen workflow benefits from those runtime capabilities.
 
 ## Package Boundaries
 
-The implementation uses Go and the following package boundaries:
-
 | Path | Responsibility |
 |------|----------------|
-| `cmd/cyber-kitchen` | Binary entry point and command wiring |
+| `cmd/cyber-kitchen` | Binary and runtime wiring |
 | `internal/api` | HTTP transport and versioned contracts |
-| `internal/admin` | Future operational command handlers |
-| `internal/domain` | Product rules and entities |
-| `internal/store` | Persistence ports and adapters; the service uses SQLite and retains an in-memory adapter for focused tests |
-| `internal/seed` | Initial household, inventory, meal, and history fixture data |
-| `internal/ai` | Future AI provider ports, validation, and fallbacks |
+| `internal/agent` | Kitchen context/prompt assembly, strict response validation, fallback |
+| `internal/domain` | Household, inventory, confirmation, and history rules |
+| `internal/store` | PostgreSQL aggregate persistence and in-memory focused-test adapter |
+| `internal/seed` | Disposable development fixture |
 
-## Implemented HTTP Contract
+Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or model providers.
 
-The service currently exposes JSON over these routes:
+## HTTP Contract
 
-| Method and path | Stable response contract |
-|-----------------|--------------------------|
-| `GET /healthz` | `{"status":"ok"}` |
-| `GET /api/v1/household` | `{"name":string,"members":[...],"constraints":[string],"goals":[string]}` (the household resource directly, without an envelope) |
-| `GET /api/v1/inventory` | `{"inventory":[{"id":string,"name":string,"amount":number,"unit":string,"category":string,"lowAt":number}]}` |
-| `GET /api/v1/meals` | `{"meals":[...],"selectedMealId":string|null}`; each meal includes its display metadata, tags, ingredients, and steps. |
-| `GET /api/v1/history` | `{"history":[{"id":string,"mealId":string,"mealName":string,"emoji":string,"cookedAt":string,"rating":string,"note":string}]}`; `cookedAt` is UTC RFC 3339 with millisecond precision. |
-| `POST /api/v1/meals/{id}/confirm` | Accepts `{"rating":"loved|okay|not-for-us","note":"..."}` and returns only `{"inventory":[...],"history":[...],"selectedMealId":string|null}` after commit. |
+| Method and path | Behavior |
+|-----------------|----------|
+| `GET /healthz` | Service health |
+| `GET /api/v1/household` | Read the household profile |
+| `PUT /api/v1/household` | Replace constraints and goals |
+| `GET /api/v1/inventory` | Read inventory |
+| `PUT /api/v1/inventory/{id}` | Create or replace one validated item |
+| `DELETE /api/v1/inventory/{id}` | Delete one item |
+| `GET /api/v1/meals` | Read current recommendations |
+| `POST /api/v1/recommendations/generate` | Run one focused agent turn and return recommendations plus `model` or `fallback` source |
+| `GET /api/v1/history` | Read meal history |
+| `POST /api/v1/meals/{id}/confirm` | Confirm rating/note, deduct inventory, prepend history, and clear selection atomically |
 
-All collection fields are JSON arrays, including when empty. Clients assemble application state from the four resource reads; there is no aggregate state endpoint. Meal confirmation is one atomic store operation. It finds the meal by path ID, subtracts each recipe ingredient from the corresponding inventory item without allowing a negative amount, prepends a timestamped history record, and clears `selectedMealId`. The success response is built from the committed state returned by that operation. Invalid ratings and unknown meals leave state unchanged. Unknown JSON fields are rejected, and transport errors retain the `{"error":string}` contract.
+Unknown request fields are rejected. Collection fields are always arrays. Invalid input and unknown resources leave state unchanged.
 
-The initial state mirrors the browser client's MVP fixture; the household profile comes from the same client's household card. On first launch, the SQLite adapter creates a protected database and seeds normalized tables for the household, inventory, meals, and history. Ordered child tables preserve members, constraints, goals, meal tags, ingredients, and steps; a singleton application-state row owns the selected meal. Every accepted domain update replaces the complete persisted snapshot inside one SQL transaction before the new in-memory snapshot becomes visible. Meal confirmation therefore commits its inventory deductions, history entry, and selection change atomically. A rejected change or failed transaction leaves both the published snapshot and database unchanged. A later service process loads the committed relational state rather than reseeding.
+## PostgreSQL Development Runtime
 
-The SQLite schema is internal rather than a public contract. During development it may change together with the current code and data; migration or compatibility behavior is intentionally omitted until production requirements exist.
+`compose.yaml` starts PostgreSQL 17 on loopback with a named local volume. `CYBER_KITCHEN_DATABASE_URL` (or `-database-url`) configures the connection; the default is the Compose development database. `CYBER_KITCHEN_LISTEN` and `CYBER_KITCHEN_CORS_ORIGINS` retain their existing meanings.
 
-## Runtime Configuration
-
-`cyber-kitchen serve` accepts `-listen`, `-cors-origins`, and `-database`. Their environment equivalents are `CYBER_KITCHEN_LISTEN` (default `:8080`), `CYBER_KITCHEN_CORS_ORIGINS` (default `http://localhost:5173`), and `CYBER_KITCHEN_DATABASE` (default `data/cyber-kitchen.db`). The origins value is a comma-separated allowlist; `*` enables a wildcard response. CORS applies at the HTTP adapter only.
-
-Dependencies point inward toward domain behavior. Persistence engines, external providers, and command frameworks remain adapters rather than domain dependencies.
+The disposable pilot schema stores the complete single-household aggregate as JSONB in one singleton row. Each accepted domain change writes the complete next state in one transaction before publishing it in memory. This makes confirmation atomic and restart-safe without migration or compatibility scaffolding. During development, schema changes may require `docker compose down --volumes` and a clean seed.
 
 ## Invariants
 
-- Product behavior MUST be available through versioned HTTP APIs rather than a product CLI or TUI.
-- HTTP and administration entry points MUST NOT own business rules.
-- Administration commands MUST be explicit, auditable, and protected by the same authorization boundaries as equivalent service operations.
-- External AI output MUST be validated before it can affect allergies, inventory, meal history, or other persistent state.
-- Client presentation code MUST remain outside the backend repository.
+- The pilot supports one household and no authentication or multi-user behavior.
+- External model output never directly mutates household, inventory, or history state.
+- Recommendation output is strictly parsed and validated before persistence.
+- Confirmation is the only cooking action that changes inventory/history, and inventory never falls below zero.
+- No general-purpose model tools, filesystem capabilities, or persistent agent sessions are exposed.
+- Production deployment and backward-compatibility machinery remain absent until explicitly required.
