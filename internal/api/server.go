@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/arturo-and-artura/cyber-kitchen/internal/agent"
 	"github.com/arturo-and-artura/cyber-kitchen/internal/domain"
 )
 
@@ -16,16 +17,24 @@ type Config struct {
 
 type Server struct {
 	service *domain.Service
+	agent   *agent.Runner
 	handler http.Handler
 }
 
-func New(service *domain.Service, config Config) *Server {
+func New(service *domain.Service, config Config, runners ...*agent.Runner) *Server {
 	server := &Server{service: service}
+	if len(runners) > 0 {
+		server.agent = runners[0]
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", server.health)
 	mux.HandleFunc("GET /api/v1/household", server.getHousehold)
+	mux.HandleFunc("PUT /api/v1/household", server.updateHousehold)
 	mux.HandleFunc("GET /api/v1/inventory", server.getInventory)
+	mux.HandleFunc("PUT /api/v1/inventory/{id}", server.putInventory)
+	mux.HandleFunc("DELETE /api/v1/inventory/{id}", server.deleteInventory)
 	mux.HandleFunc("GET /api/v1/meals", server.getMeals)
+	mux.HandleFunc("POST /api/v1/recommendations/generate", server.generateRecommendations)
 	mux.HandleFunc("GET /api/v1/history", server.getHistory)
 	mux.HandleFunc("POST /api/v1/meals/{id}/confirm", server.confirmMeal)
 	server.handler = withCORS(config.AllowedOrigins, mux)
@@ -61,6 +70,93 @@ func (s *Server) getMeals(response http.ResponseWriter, _ *http.Request) {
 func (s *Server) getHistory(response http.ResponseWriter, _ *http.Request) {
 	state := s.service.State()
 	writeJSON(response, http.StatusOK, historyReadResponse{History: historyResponsesFrom(state.History)})
+}
+
+func (s *Server) updateHousehold(response http.ResponseWriter, request *http.Request) {
+	var input struct {
+		Constraints []string `json:"constraints"`
+		Goals       []string `json:"goals"`
+	}
+	if !decodeBody(response, request, &input) {
+		return
+	}
+	state, err := s.service.UpdateHousehold(input.Constraints, input.Goals)
+	if errors.Is(err, domain.ErrInvalidHousehold) {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(response, http.StatusOK, householdResponseFrom(state.Household))
+}
+
+func (s *Server) putInventory(response http.ResponseWriter, request *http.Request) {
+	var input domain.InventoryItem
+	if !decodeBody(response, request, &input) {
+		return
+	}
+	input.ID = request.PathValue("id")
+	state, err := s.service.PutInventory(input)
+	if errors.Is(err, domain.ErrInvalidInventory) {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(response, http.StatusOK, inventoryReadResponse{Inventory: inventoryResponsesFrom(state.Inventory)})
+}
+
+func (s *Server) deleteInventory(response http.ResponseWriter, request *http.Request) {
+	state, err := s.service.DeleteInventory(request.PathValue("id"))
+	if errors.Is(err, domain.ErrInventoryNotFound) {
+		writeError(response, http.StatusNotFound, err.Error())
+		return
+	}
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(response, http.StatusOK, inventoryReadResponse{Inventory: inventoryResponsesFrom(state.Inventory)})
+}
+
+func (s *Server) generateRecommendations(response http.ResponseWriter, request *http.Request) {
+	if s.agent == nil {
+		writeError(response, http.StatusServiceUnavailable, "kitchen agent is unavailable")
+		return
+	}
+	state := s.service.State()
+	meals, source := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
+	state, err := s.service.ReplaceRecommendations(meals)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(response, http.StatusOK, struct {
+		Meals  []mealResponse `json:"meals"`
+		Source string         `json:"source"`
+	}{Meals: mealResponsesFrom(state.Meals), Source: source})
+}
+
+func decodeBody(response http.ResponseWriter, request *http.Request, destination any) bool {
+	if contentType := request.Header.Get("Content-Type"); contentType != "" && !strings.HasPrefix(strings.ToLower(contentType), "application/json") {
+		writeError(response, http.StatusUnsupportedMediaType, "content type must be application/json")
+		return false
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(response, request.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		writeError(response, http.StatusBadRequest, "invalid JSON request body")
+		return false
+	}
+	if err := ensureEOF(decoder); err != nil {
+		writeError(response, http.StatusBadRequest, "request body must contain one JSON object")
+		return false
+	}
+	return true
 }
 
 func (s *Server) confirmMeal(response http.ResponseWriter, request *http.Request) {

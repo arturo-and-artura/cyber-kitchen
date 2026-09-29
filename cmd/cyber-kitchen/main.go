@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/arturo-and-artura/cyber-kitchen/internal/agent"
 	"github.com/arturo-and-artura/cyber-kitchen/internal/api"
 	"github.com/arturo-and-artura/cyber-kitchen/internal/domain"
 	"github.com/arturo-and-artura/cyber-kitchen/internal/seed"
@@ -28,22 +29,24 @@ func main() {
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	listenAddress := flags.String("listen", envOr("CYBER_KITCHEN_LISTEN", ":8080"), "HTTP listen address")
 	corsOrigins := flags.String("cors-origins", envOr("CYBER_KITCHEN_CORS_ORIGINS", "http://localhost:5173"), "comma-separated allowed CORS origins")
-	databasePath := flags.String("database", envOr("CYBER_KITCHEN_DATABASE", "data/cyber-kitchen.db"), "SQLite database path")
+	databaseURL := flags.String("database-url", envOr("CYBER_KITCHEN_DATABASE_URL", "postgres://cyber_kitchen:cyber_kitchen@localhost:5432/cyber_kitchen?sslmode=disable"), "PostgreSQL connection URL")
 	_ = flags.Parse(os.Args[2:])
 
-	sqliteStore, err := store.NewSQLite(*databasePath, seed.InitialState())
+	initial := seed.InitialState()
+	postgresStore, err := store.NewPostgres(*databaseURL, initial)
 	if err != nil {
 		log.Fatalf("open kitchen database: %v", err)
 	}
 	defer func() {
-		if err := sqliteStore.Close(); err != nil {
+		if err := postgresStore.Close(); err != nil {
 			log.Printf("close kitchen database: %v", err)
 		}
 	}()
-	service := domain.NewService(sqliteStore, time.Now, func() string {
+	service := domain.NewService(postgresStore, time.Now, func() string {
 		return fmt.Sprintf("history-%d", time.Now().UnixNano())
 	})
-	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)})
+	kitchenAgent := agent.New(nil, initial.Meals)
+	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)}, kitchenAgent)
 	server := &http.Server{
 		Addr:              *listenAddress,
 		Handler:           handler,

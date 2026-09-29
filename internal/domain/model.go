@@ -3,47 +3,47 @@ package domain
 import "time"
 
 type HouseholdMember struct {
-	ID       string
-	Name     string
-	Initials string
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Initials string `json:"initials"`
 }
 
 type Household struct {
-	Name        string
-	Members     []HouseholdMember
-	Constraints []string
-	Goals       []string
+	Name        string            `json:"name"`
+	Members     []HouseholdMember `json:"members"`
+	Constraints []string          `json:"constraints"`
+	Goals       []string          `json:"goals"`
 }
 
 type InventoryItem struct {
-	ID       string
-	Name     string
-	Amount   float64
-	Unit     string
-	Category string
-	LowAt    float64
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Amount   float64 `json:"amount"`
+	Unit     string  `json:"unit"`
+	Category string  `json:"category"`
+	LowAt    float64 `json:"lowAt"`
 }
 
 type MealIngredient struct {
-	InventoryID string
-	Name        string
-	Amount      float64
-	Unit        string
-	Optional    bool
+	InventoryID string  `json:"inventoryId"`
+	Name        string  `json:"name"`
+	Amount      float64 `json:"amount"`
+	Unit        string  `json:"unit"`
+	Optional    bool    `json:"optional,omitempty"`
 }
 
 type Meal struct {
-	ID          string
-	Name        string
-	Description string
-	Reason      string
-	Emoji       string
-	Accent      string
-	Minutes     int
-	Difficulty  string
-	Tags        []string
-	Ingredients []MealIngredient
-	Steps       []string
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Reason      string           `json:"reason"`
+	Emoji       string           `json:"emoji"`
+	Accent      string           `json:"accent"`
+	Minutes     int              `json:"minutes"`
+	Difficulty  string           `json:"difficulty"`
+	Tags        []string         `json:"tags"`
+	Ingredients []MealIngredient `json:"ingredients"`
+	Steps       []string         `json:"steps"`
 }
 
 type Rating string
@@ -59,19 +59,19 @@ func (r Rating) Valid() bool {
 }
 
 type HistoryEntry struct {
-	ID       string
-	MealID   string
-	MealName string
-	Emoji    string
-	CookedAt time.Time
-	Rating   Rating
-	Note     string
+	ID       string    `json:"id"`
+	MealID   string    `json:"mealId"`
+	MealName string    `json:"mealName"`
+	Emoji    string    `json:"emoji"`
+	CookedAt time.Time `json:"cookedAt"`
+	Rating   Rating    `json:"rating"`
+	Note     string    `json:"note"`
 }
 
 type State struct {
-	Household      Household
-	Inventory      []InventoryItem
-	Meals          []Meal
-	History        []HistoryEntry
-	SelectedMealID *string
+	Household      Household       `json:"household"`
+	Inventory      []InventoryItem `json:"inventory"`
+	Meals          []Meal          `json:"meals"`
+	History        []HistoryEntry  `json:"history"`
+	SelectedMealID *string         `json:"selectedMealId"`
 }
