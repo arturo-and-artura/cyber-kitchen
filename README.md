@@ -17,6 +17,18 @@ The service listens on `:8080`, allows `http://localhost:5173`, and uses the Com
 
 The development schema is disposable and intentionally has no migration/compatibility layer. Reset it with `docker compose down --volumes`.
 
+### Optional DeepSeek recommendations
+
+The deterministic fallback remains the default. To enable the direct stateless DeepSeek adapter, provide the key at runtime and explicitly select the provider:
+
+```sh
+CYBER_KITCHEN_MODEL_PROVIDER=deepseek \
+DEEPSEEK_API_KEY='<runtime secret>' \
+go run ./cmd/cyber-kitchen serve
+```
+
+`DEEPSEEK_MODEL` defaults to `deepseek-chat`. `DEEPSEEK_BASE_URL` may select a compatible self-hosted endpoint. The key is read only from the process environment; it is not stored, logged, or added to prompts. Do not commit keys or local secret-file paths.
+
 ## API
 
 Resource reads are available at `/api/v1/household`, `/api/v1/inventory`, `/api/v1/meals`, and `/api/v1/history`. The pilot also supports:
