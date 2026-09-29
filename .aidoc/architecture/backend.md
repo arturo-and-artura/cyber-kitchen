@@ -31,7 +31,7 @@ Cooking has consequences. Inventory and history changes therefore remain determi
 
 `internal/agent.Runner` is the runtime boundary for one stateless kitchen-assistance turn:
 
-1. `BuildPrompt` assembles household constraints and goals, current inventory, and history from application-owned state.
+1. `BuildPrompt` assembles household members, constraints, goals, and preferences; current inventory and its storage/count metadata; and history from application-owned state.
 2. A narrow `Model` implementation may produce one JSON document in the predefined `Response` format.
 3. `Validate` requires exactly three complete, uniquely identified meals, known inventory references, available quantities, supported difficulty values, and non-empty cooking steps.
 4. Provider failures, invalid JSON, unknown fields, or unsafe content fail the turn without changing the current recommendations.
@@ -60,7 +60,7 @@ Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or mo
 |-----------------|----------|
 | `GET /healthz` | Service health |
 | `GET /api/v1/household` | Read the household profile |
-| `PUT /api/v1/household` | Replace constraints and goals |
+| `PUT /api/v1/household` | Atomically replace members, constraints, goals, and preferences while preserving the server-owned household name |
 | `GET /api/v1/inventory` | Read inventory |
 | `PUT /api/v1/inventory/{id}` | Create or replace one validated item |
 | `DELETE /api/v1/inventory/{id}` | Delete one item |
@@ -70,6 +70,8 @@ Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or mo
 | `POST /api/v1/meals/{id}/confirm` | Confirm rating/note, deduct inventory, prepend history, and clear selection atomically |
 
 Unknown request fields are rejected. Collection fields are always arrays. Invalid input and unknown resources leave state unchanged.
+
+Household members may record an optional height in centimeters and bounded notes. Inventory keeps `amount`, `unit`, and `lowAt` as the deterministic deduction basis while optionally recording a paired physical `count`/`countUnit`, storage location, `recordedOn` calendar date (`YYYY-MM-DD`), and notes. IDs, names, finite nonnegative quantities, bounded text and collections, member uniqueness, and count-pair coherence are validated before an aggregate update is stored.
 
 ## PostgreSQL Development Runtime
 

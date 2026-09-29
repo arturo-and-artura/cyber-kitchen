@@ -74,13 +74,15 @@ func (s *Server) getHistory(response http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) updateHousehold(response http.ResponseWriter, request *http.Request) {
 	var input struct {
-		Constraints []string `json:"constraints"`
-		Goals       []string `json:"goals"`
+		Members     []domain.HouseholdMember `json:"members"`
+		Constraints []string                 `json:"constraints"`
+		Goals       []string                 `json:"goals"`
+		Preferences []string                 `json:"preferences"`
 	}
 	if !decodeBody(response, request, &input) {
 		return
 	}
-	state, err := s.service.UpdateHousehold(input.Constraints, input.Goals)
+	state, err := s.service.UpdateHousehold(input.Members, input.Constraints, input.Goals, input.Preferences)
 	if errors.Is(err, domain.ErrInvalidHousehold) {
 		writeError(response, http.StatusBadRequest, err.Error())
 		return
@@ -290,9 +292,11 @@ type confirmationResponse struct {
 }
 
 type householdMemberResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Initials string `json:"initials"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Initials string   `json:"initials"`
+	HeightCm *float64 `json:"heightCm"`
+	Notes    []string `json:"notes"`
 }
 
 type householdResponse struct {
@@ -300,15 +304,21 @@ type householdResponse struct {
 	Members     []householdMemberResponse `json:"members"`
 	Constraints []string                  `json:"constraints"`
 	Goals       []string                  `json:"goals"`
+	Preferences []string                  `json:"preferences"`
 }
 
 type inventoryResponse struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Amount   float64 `json:"amount"`
-	Unit     string  `json:"unit"`
-	Category string  `json:"category"`
-	LowAt    float64 `json:"lowAt"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Amount     float64  `json:"amount"`
+	Unit       string   `json:"unit"`
+	Category   string   `json:"category"`
+	LowAt      float64  `json:"lowAt"`
+	Count      *float64 `json:"count"`
+	CountUnit  string   `json:"countUnit"`
+	Storage    string   `json:"storage"`
+	RecordedOn string   `json:"recordedOn"`
+	Notes      string   `json:"notes"`
 }
 
 type ingredientResponse struct {
@@ -349,9 +359,13 @@ func householdResponseFrom(household domain.Household) householdResponse {
 		Members:     make([]householdMemberResponse, len(household.Members)),
 		Constraints: append([]string{}, household.Constraints...),
 		Goals:       append([]string{}, household.Goals...),
+		Preferences: append([]string{}, household.Preferences...),
 	}
 	for i, member := range household.Members {
-		result.Members[i] = householdMemberResponse{ID: member.ID, Name: member.Name, Initials: member.Initials}
+		result.Members[i] = householdMemberResponse{
+			ID: member.ID, Name: member.Name, Initials: member.Initials, HeightCm: member.HeightCm,
+			Notes: append([]string{}, member.Notes...),
+		}
 	}
 	return result
 }
@@ -359,7 +373,10 @@ func householdResponseFrom(household domain.Household) householdResponse {
 func inventoryResponsesFrom(inventory []domain.InventoryItem) []inventoryResponse {
 	result := make([]inventoryResponse, len(inventory))
 	for i, item := range inventory {
-		result[i] = inventoryResponse{ID: item.ID, Name: item.Name, Amount: item.Amount, Unit: item.Unit, Category: item.Category, LowAt: item.LowAt}
+		result[i] = inventoryResponse{
+			ID: item.ID, Name: item.Name, Amount: item.Amount, Unit: item.Unit, Category: item.Category, LowAt: item.LowAt,
+			Count: item.Count, CountUnit: item.CountUnit, Storage: item.Storage, RecordedOn: item.RecordedOn, Notes: item.Notes,
+		}
 	}
 	return result
 }
