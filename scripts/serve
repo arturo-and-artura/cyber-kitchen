@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+exec go run ./cmd/cyber-kitchen serve \
+  -deepseek-api-key-file "${DEEPSEEK_API_KEY_FILE:-.secrets/deepseek-api-key}" \
+  "$@"

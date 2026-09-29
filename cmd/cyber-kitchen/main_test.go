@@ -1,14 +1,15 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/arturo-and-artura/cyber-kitchen/internal/agent"
 )
 
-func TestConfiguredModelIsOptional(t *testing.T) {
-	t.Setenv("DEEPSEEK_API_KEY", "")
-	model, err := configuredModel()
+func TestConfiguredModelReadsOptionalKeyFile(t *testing.T) {
+	missingPath := t.TempDir() + "/missing"
+	model, err := configuredModel(missingPath)
 	if err != nil {
 		t.Fatalf("configure without deepseek: %v", err)
 	}
@@ -16,8 +17,11 @@ func TestConfiguredModelIsOptional(t *testing.T) {
 		t.Fatalf("model = %T, want nil", model)
 	}
 
-	t.Setenv("DEEPSEEK_API_KEY", "test-key")
-	model, err = configuredModel()
+	keyPath := t.TempDir() + "/deepseek-api-key"
+	if err := os.WriteFile(keyPath, []byte("test-key\n"), 0o600); err != nil {
+		t.Fatalf("write key file: %v", err)
+	}
+	model, err = configuredModel(keyPath)
 	if err != nil {
 		t.Fatalf("configure deepseek: %v", err)
 	}

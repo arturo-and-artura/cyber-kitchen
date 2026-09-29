@@ -30,6 +30,7 @@ func main() {
 	listenAddress := flags.String("listen", envOr("CYBER_KITCHEN_LISTEN", ":8080"), "HTTP listen address")
 	corsOrigins := flags.String("cors-origins", envOr("CYBER_KITCHEN_CORS_ORIGINS", "http://localhost:5173"), "comma-separated allowed CORS origins")
 	databaseURL := flags.String("database-url", envOr("CYBER_KITCHEN_DATABASE_URL", "postgres://cyber_kitchen:cyber_kitchen@localhost:5432/cyber_kitchen?sslmode=disable"), "PostgreSQL connection URL")
+	deepSeekAPIKeyFile := flags.String("deepseek-api-key-file", envOr("DEEPSEEK_API_KEY_FILE", ".secrets/deepseek-api-key"), "path to the DeepSeek API key file")
 	_ = flags.Parse(os.Args[2:])
 
 	initial := seed.InitialState()
@@ -45,7 +46,7 @@ func main() {
 	service := domain.NewService(postgresStore, time.Now, func() string {
 		return fmt.Sprintf("history-%d", time.Now().UnixNano())
 	})
-	model, err := configuredModel()
+	model, err := configuredModel(*deepSeekAPIKeyFile)
 	if err != nil {
 		log.Fatalf("configure kitchen model: %v", err)
 	}
@@ -77,9 +78,16 @@ func main() {
 	}
 }
 
-func configuredModel() (agent.Model, error) {
-	apiKey := os.Getenv("DEEPSEEK_API_KEY")
-	if strings.TrimSpace(apiKey) == "" {
+func configuredModel(apiKeyFile string) (agent.Model, error) {
+	contents, err := os.ReadFile(apiKeyFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read DeepSeek API key file: %w", err)
+	}
+	apiKey := strings.TrimSpace(string(contents))
+	if apiKey == "" {
 		return nil, nil
 	}
 	return agent.NewDeepSeekModel(agent.DeepSeekConfig{
