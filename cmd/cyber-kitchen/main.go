@@ -30,7 +30,6 @@ func main() {
 	listenAddress := flags.String("listen", envOr("CYBER_KITCHEN_LISTEN", ":8080"), "HTTP listen address")
 	corsOrigins := flags.String("cors-origins", envOr("CYBER_KITCHEN_CORS_ORIGINS", "http://localhost:5173"), "comma-separated allowed CORS origins")
 	databaseURL := flags.String("database-url", envOr("CYBER_KITCHEN_DATABASE_URL", "postgres://cyber_kitchen:cyber_kitchen@localhost:5432/cyber_kitchen?sslmode=disable"), "PostgreSQL connection URL")
-	modelProvider := flags.String("model-provider", envOr("CYBER_KITCHEN_MODEL_PROVIDER", ""), "external model provider (empty or deepseek)")
 	_ = flags.Parse(os.Args[2:])
 
 	initial := seed.InitialState()
@@ -46,11 +45,11 @@ func main() {
 	service := domain.NewService(postgresStore, time.Now, func() string {
 		return fmt.Sprintf("history-%d", time.Now().UnixNano())
 	})
-	model, err := configuredModel(*modelProvider)
+	model, err := configuredModel()
 	if err != nil {
 		log.Fatalf("configure kitchen model: %v", err)
 	}
-	kitchenAgent := agent.New(model, initial.Meals)
+	kitchenAgent := agent.New(model)
 	handler := api.New(service, api.Config{AllowedOrigins: splitCommaList(*corsOrigins)}, kitchenAgent)
 	server := &http.Server{
 		Addr:              *listenAddress,
@@ -75,19 +74,12 @@ func main() {
 	}
 }
 
-func configuredModel(provider string) (agent.Model, error) {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "":
-		return nil, nil
-	case "deepseek":
-		return agent.NewDeepSeekModel(agent.DeepSeekConfig{
-			APIKey:  os.Getenv("DEEPSEEK_API_KEY"),
-			BaseURL: envOr("DEEPSEEK_BASE_URL", agent.DefaultDeepSeekBaseURL),
-			Model:   envOr("DEEPSEEK_MODEL", agent.DefaultDeepSeekModel),
-		})
-	default:
-		return nil, fmt.Errorf("unsupported model provider %q", provider)
-	}
+func configuredModel() (agent.Model, error) {
+	return agent.NewDeepSeekModel(agent.DeepSeekConfig{
+		APIKey:  os.Getenv("DEEPSEEK_API_KEY"),
+		BaseURL: envOr("DEEPSEEK_BASE_URL", agent.DefaultDeepSeekBaseURL),
+		Model:   envOr("DEEPSEEK_MODEL", agent.DefaultDeepSeekModel),
+	})
 }
 
 func envOr(name, fallback string) string {

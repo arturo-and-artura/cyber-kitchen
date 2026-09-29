@@ -129,8 +129,12 @@ func (s *Server) generateRecommendations(response http.ResponseWriter, request *
 		return
 	}
 	state := s.service.State()
-	meals, source := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
-	state, err := s.service.ReplaceRecommendations(meals)
+	meals, err := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
+	if err != nil {
+		writeError(response, http.StatusBadGateway, "kitchen agent failed")
+		return
+	}
+	state, err = s.service.ReplaceRecommendations(meals)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "internal server error")
 		return
@@ -138,7 +142,7 @@ func (s *Server) generateRecommendations(response http.ResponseWriter, request *
 	writeJSON(response, http.StatusOK, struct {
 		Meals  []mealResponse `json:"meals"`
 		Source string         `json:"source"`
-	}{Meals: mealResponsesFrom(state.Meals), Source: source})
+	}{Meals: mealResponsesFrom(state.Meals), Source: "model"})
 }
 
 func decodeBody(response http.ResponseWriter, request *http.Request, destination any) bool {

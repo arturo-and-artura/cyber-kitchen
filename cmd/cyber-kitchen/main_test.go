@@ -6,21 +6,14 @@ import (
 	"github.com/arturo-and-artura/cyber-kitchen/internal/agent"
 )
 
-func TestConfiguredModelIsExplicitAndValidated(t *testing.T) {
+func TestConfiguredModelRequiresAPIKey(t *testing.T) {
 	t.Setenv("DEEPSEEK_API_KEY", "")
-	model, err := configuredModel("")
-	if err != nil || model != nil {
-		t.Fatalf("disabled model = %T, %v", model, err)
-	}
-	if _, err := configuredModel("unknown"); err == nil {
-		t.Fatalf("unknown provider was accepted")
-	}
-	if _, err := configuredModel("deepseek"); err == nil {
+	if _, err := configuredModel(); err == nil {
 		t.Fatalf("deepseek without API key was accepted")
 	}
 
 	t.Setenv("DEEPSEEK_API_KEY", "test-key")
-	model, err = configuredModel("deepseek")
+	model, err := configuredModel()
 	if err != nil {
 		t.Fatalf("configure deepseek: %v", err)
 	}

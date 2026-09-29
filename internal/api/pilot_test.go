@@ -1,6 +1,9 @@
 package api_test
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,10 +17,36 @@ import (
 	"github.com/arturo-and-artura/cyber-kitchen/internal/store"
 )
 
+type modelFunc func(context.Context, string) ([]byte, error)
+
+func (f modelFunc) Complete(ctx context.Context, prompt string) ([]byte, error) {
+	return f(ctx, prompt)
+}
+
+func TestRecommendationFailureReturnsErrorWithoutChangingMeals(t *testing.T) {
+	initial := seed.InitialState()
+	service := domain.NewService(store.NewMemory(initial), time.Now, func() string { return "unused" })
+	model := modelFunc(func(context.Context, string) ([]byte, error) { return nil, errors.New("provider unavailable") })
+	handler := api.New(service, api.Config{}, agent.New(model))
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/generate", nil))
+
+	if response.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d: %s", response.Code, response.Body.String())
+	}
+	if meals := service.State().Meals; len(meals) != len(initial.Meals) || meals[0].ID != initial.Meals[0].ID {
+		t.Fatalf("recommendations changed after provider failure")
+	}
+}
+
 func TestPilotEditingRecommendationAndConfirmationFlow(t *testing.T) {
 	initial := seed.InitialState()
 	service := domain.NewService(store.NewMemory(initial), func() time.Time { return time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC) }, func() string { return "history-pilot" })
-	handler := api.New(service, api.Config{}, agent.New(nil, initial.Meals))
+	model := modelFunc(func(context.Context, string) ([]byte, error) {
+		return json.Marshal(agent.Response{Recommendations: initial.Meals})
+	})
+	handler := api.New(service, api.Config{}, agent.New(model))
 
 	requests := []struct {
 		method, path, body string
