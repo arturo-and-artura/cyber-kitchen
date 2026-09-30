@@ -31,11 +31,11 @@ Cooking has consequences. Inventory and history changes therefore remain determi
 
 `internal/agent.Runner` is the runtime boundary for one stateless kitchen-assistance turn:
 
-1. `BuildPrompt` assembles household members, constraints, goals, and preferences; current inventory and its storage/count metadata; and history from application-owned state.
-2. A narrow `Model` implementation may produce one JSON document in the predefined `Response` format.
-3. `Validate` requires exactly three complete, uniquely identified meals, known inventory references, available quantities, supported difficulty values, and non-empty cooking steps.
-4. Provider failures, invalid JSON, unknown fields, or unsafe content fail the turn without changing the current recommendations.
-5. Validated recommendations are persisted atomically. The model cannot mutate inventory, history, household state, or files and has no tools or persistent session.
+1. `BuildPrompt` assembles the requested stable locale (`en` or `zh-CN`), household members, constraints, goals, and preferences; current inventory and its storage/count metadata; and history from application-owned state.
+2. A narrow `Model` implementation may produce one JSON document in the predefined `Response` format. It writes generated recommendation copy in the requested locale while preserving supplied user text and exact inventory identifiers.
+3. `Validate` requires exactly three complete, uniquely identified meals, the requested locale on every meal, known inventory references, available quantities, supported difficulty values, and non-empty cooking steps.
+4. Provider failures, invalid JSON, unsupported or mismatched locales, unknown fields, or unsafe content fail the turn without changing the current recommendations.
+5. Validated recommendations and their locale are persisted atomically. The model cannot mutate inventory, history, household state, or files and has no tools or persistent session.
 
 The pilot uses one direct DeepSeek adapter for recommendation generation. It implements the stateless `Model` boundary, sends one prompt to the OpenAI-compatible chat-completions API, requests a JSON object, and returns only the assistant content to the strict validator. The runtime reads the key from a private file selected by `-deepseek-api-key-file`; the key remains outside command arguments, process-environment configuration, prompts, logs, and persistence.
 
@@ -65,11 +65,11 @@ Dependencies point inward. The domain does not depend on HTTP, PostgreSQL, or mo
 | `PUT /api/v1/inventory/{id}` | Create or replace one validated item |
 | `DELETE /api/v1/inventory/{id}` | Delete one item |
 | `GET /api/v1/meals` | Read current recommendations |
-| `POST /api/v1/recommendations/generate` | Run one focused agent turn; unavailable AI capability and provider failures return stable error codes with user-facing messages and leave current recommendations unchanged |
+| `POST /api/v1/recommendations/generate` | Run one focused agent turn for required body `{ "locale": "en" | "zh-CN" }`; unavailable AI capability, unsupported locales, and provider failures return stable language-neutral error codes and leave current recommendations unchanged |
 | `GET /api/v1/history` | Read meal history |
 | `POST /api/v1/meals/{id}/confirm` | Confirm rating/note, deduct inventory, prepend history, and clear selection atomically |
 
-Unknown request fields are rejected. Collection fields are always arrays. Invalid input and unknown resources leave state unchanged.
+Unknown request fields are rejected. Collection fields are always arrays. Each meal resource records the stable locale of its generated user-visible content. Invalid input and unknown resources leave state unchanged.
 
 Household members may record an optional height in centimeters and bounded notes. Inventory keeps `amount`, `unit`, and `lowAt` as the deterministic deduction basis while optionally recording a paired physical `count`/`countUnit`, storage location, `recordedOn` calendar date (`YYYY-MM-DD`), and notes. Inventory category is a bounded non-empty label rather than a closed enumeration so clients may introduce useful household-specific groupings. IDs, names, finite nonnegative quantities, bounded text and collections, member uniqueness, and count-pair coherence are validated before an aggregate update is stored.
 

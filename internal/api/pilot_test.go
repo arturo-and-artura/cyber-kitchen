@@ -40,7 +40,7 @@ func TestRecommendationCapabilityReturnsFriendlyErrorsWithoutChangingMeals(t *te
 			service := domain.NewService(store.NewMemory(initial), time.Now, func() string { return "unused" })
 			handler := api.New(service, api.Config{}, test.runner)
 			response := httptest.NewRecorder()
-			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/generate", nil))
+			handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/generate", strings.NewReader(`{"locale":"en"}`)))
 
 			if response.Code != test.wantStatus {
 				t.Fatalf("status = %d: %s", response.Code, response.Body.String())
@@ -62,10 +62,26 @@ func TestRecommendationCapabilityReturnsFriendlyErrorsWithoutChangingMeals(t *te
 	}
 }
 
+func TestRecommendationRejectsUnsupportedLocale(t *testing.T) {
+	initial := seed.InitialState()
+	service := domain.NewService(store.NewMemory(initial), time.Now, func() string { return "unused" })
+	handler := api.New(service, api.Config{}, agent.New(modelFunc(func(context.Context, string) ([]byte, error) { return nil, nil })))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/recommendations/generate", strings.NewReader(`{"locale":"fr"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "unsupported_locale") {
+		t.Fatalf("response = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestPilotEditingRecommendationAndConfirmationFlow(t *testing.T) {
 	initial := seed.InitialState()
 	service := domain.NewService(store.NewMemory(initial), func() time.Time { return time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC) }, func() string { return "history-pilot" })
-	model := modelFunc(func(context.Context, string) ([]byte, error) {
+	model := modelFunc(func(_ context.Context, prompt string) ([]byte, error) {
+		if !strings.Contains(prompt, `"locale":"en"`) {
+			t.Fatalf("prompt missing locale: %s", prompt)
+		}
 		return json.Marshal(agent.Response{Recommendations: initial.Meals})
 	})
 	handler := api.New(service, api.Config{}, agent.New(model))
@@ -76,7 +92,7 @@ func TestPilotEditingRecommendationAndConfirmationFlow(t *testing.T) {
 	}{
 		{http.MethodPut, "/api/v1/household", `{"constraints":["Peanut-free"],"goals":["Use produce first"]}`, 200},
 		{http.MethodPut, "/api/v1/inventory/tomato", `{"name":"Tomato","amount":4,"unit":"","category":"Produce","lowAt":1}`, 200},
-		{http.MethodPost, "/api/v1/recommendations/generate", ``, 200},
+		{http.MethodPost, "/api/v1/recommendations/generate", `{"locale":"en"}`, 200},
 		{http.MethodPost, "/api/v1/meals/miso-salmon/confirm", `{"rating":"loved","note":"Pilot flow"}`, 200},
 		{http.MethodDelete, "/api/v1/inventory/tomato", ``, 200},
 	}
