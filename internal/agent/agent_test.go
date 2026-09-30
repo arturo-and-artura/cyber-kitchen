@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arturo-and-artura/cyber-kitchen/internal/domain"
 	"github.com/arturo-and-artura/cyber-kitchen/internal/seed"
 )
 
@@ -47,6 +48,37 @@ func TestRunnerReportsModelAndValidationErrors(t *testing.T) {
 	}
 	if _, err := New(nil).Recommend(context.Background(), Context{}); err == nil {
 		t.Fatalf("missing model was accepted")
+	}
+}
+
+func TestBuildPromptDefinesCompleteMealSchemaAndInventoryRules(t *testing.T) {
+	state := seed.InitialState()
+	height := 170.5
+	count := 2.0
+	state.Household.Members = []domain.HouseholdMember{{ID: "member-1", Name: "Member One", HeightCm: &height, Notes: []string{"Smaller portions"}}}
+	state.Household.Preferences = []string{"Quick dinners"}
+	state.Inventory = []domain.InventoryItem{{
+		ID: "rice", Name: "Rice", Amount: 500, Unit: "g", Category: "Pantry", LowAt: 100,
+		Count: &count, CountUnit: "bags", Storage: "Pantry", RecordedOn: "2026-09-29", Notes: "Opened",
+	}}
+	prompt := BuildPrompt(Context{Household: state.Household, Inventory: state.Inventory})
+	for _, required := range []string{
+		`"inventoryId":"exact inventory item id"`,
+		`"difficulty":"Easy"`,
+		`"ingredients"`,
+		`"steps"`,
+		"exactly three complete meals",
+		"no greater than the available amount",
+		"must not introduce unlisted ingredients",
+		`"id":"rice"`,
+		`"heightCm":170.5`,
+		`"preferences":["Quick dinners"]`,
+		`"countUnit":"bags"`,
+		`"recordedOn":"2026-09-29"`,
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("prompt missing %q: %s", required, prompt)
+		}
 	}
 }
 

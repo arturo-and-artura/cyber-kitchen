@@ -35,8 +35,8 @@ The app remains explorable when AI recommendations are not configured. Household
 
 Resource reads are available at `/api/v1/household`, `/api/v1/inventory`, `/api/v1/meals`, and `/api/v1/history`. The pilot also supports:
 
-- `PUT /api/v1/household` — replace constraints and goals
-- `PUT /api/v1/inventory/{id}` — create or replace an inventory item
+- `PUT /api/v1/household` — atomically replace members, constraints, goals, and preferences (the household name remains server-owned)
+- `PUT /api/v1/inventory/{id}` — create or replace an inventory item, including optional count, storage, recorded-date, and notes metadata
 - `DELETE /api/v1/inventory/{id}` — delete an inventory item
 - `POST /api/v1/recommendations/generate` — run one focused kitchen-agent turn
 - `POST /api/v1/meals/{id}/confirm` — atomically commit the explicit meal confirmation

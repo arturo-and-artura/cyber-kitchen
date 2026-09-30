@@ -3,9 +3,11 @@ package domain
 import "time"
 
 type HouseholdMember struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Initials string `json:"initials"`
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Initials string   `json:"initials"`
+	HeightCm *float64 `json:"heightCm"`
+	Notes    []string `json:"notes"`
 }
 
 type Household struct {
@@ -13,15 +15,21 @@ type Household struct {
 	Members     []HouseholdMember `json:"members"`
 	Constraints []string          `json:"constraints"`
 	Goals       []string          `json:"goals"`
+	Preferences []string          `json:"preferences"`
 }
 
 type InventoryItem struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Amount   float64 `json:"amount"`
-	Unit     string  `json:"unit"`
-	Category string  `json:"category"`
-	LowAt    float64 `json:"lowAt"`
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Amount     float64  `json:"amount"`
+	Unit       string   `json:"unit"`
+	Category   string   `json:"category"`
+	LowAt      float64  `json:"lowAt"`
+	Count      *float64 `json:"count"`
+	CountUnit  string   `json:"countUnit"`
+	Storage    string   `json:"storage"`
+	RecordedOn string   `json:"recordedOn"`
+	Notes      string   `json:"notes"`
 }
 
 type MealIngredient struct {

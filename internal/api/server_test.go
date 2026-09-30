@@ -116,7 +116,7 @@ func TestResourceReadAPIs(t *testing.T) {
 		{
 			name:     "household",
 			path:     "/api/v1/household",
-			wantKeys: []string{"name", "members", "constraints", "goals"},
+			wantKeys: []string{"name", "members", "constraints", "goals", "preferences"},
 			assert: func(t *testing.T, body []byte) {
 				var response struct {
 					Name    string            `json:"name"`
@@ -196,6 +196,93 @@ func TestResourceReadAPIs(t *testing.T) {
 			assertJSONKeys(t, response.Body.Bytes(), test.wantKeys...)
 			test.assert(t, response.Body.Bytes())
 		})
+	}
+}
+
+func TestHouseholdProfileAPIReplacesEditableFieldsAndKeepsNameServerOwned(t *testing.T) {
+	initial := seed.InitialState()
+	originalName := initial.Household.Name
+	memory := store.NewMemory(initial)
+	service := domain.NewService(memory, time.Now, func() string { return "unused" })
+	handler := api.New(service, api.Config{})
+	body := `{"members":[{"id":"member-1","name":"Member One","initials":"MO","heightCm":171.5,"notes":["Prefers mild food"]}],"constraints":["No peanuts"],"goals":["Reduce waste"],"preferences":["Fast dinners"]}`
+
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/household", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("PUT household status = %d: %s", response.Code, response.Body.String())
+	}
+	assertJSONKeys(t, response.Body.Bytes(), "name", "members", "constraints", "goals", "preferences")
+	var got struct {
+		Name        string   `json:"name"`
+		Preferences []string `json:"preferences"`
+		Members     []struct {
+			HeightCm *float64 `json:"heightCm"`
+			Notes    []string `json:"notes"`
+		} `json:"members"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode household response: %v", err)
+	}
+	if got.Name != originalName || len(got.Preferences) != 1 || len(got.Members) != 1 || got.Members[0].HeightCm == nil || *got.Members[0].HeightCm != 171.5 || len(got.Members[0].Notes) != 1 {
+		t.Fatalf("household response = %#v", got)
+	}
+
+	// The household name is intentionally absent from the write contract.
+	rejected := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPut, "/api/v1/household", strings.NewReader(`{"name":"Client override","members":[],"constraints":[],"goals":[],"preferences":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(rejected, request)
+	if rejected.Code != http.StatusBadRequest || memory.Snapshot().Household.Name != originalName || len(memory.Snapshot().Household.Members) != 1 {
+		t.Fatalf("server-owned name request status=%d state=%#v", rejected.Code, memory.Snapshot().Household)
+	}
+}
+
+func TestInventoryMetadataAPIAndStrictValidation(t *testing.T) {
+	memory := store.NewMemory(seed.InitialState())
+	service := domain.NewService(memory, time.Now, func() string { return "unused" })
+	handler := api.New(service, api.Config{})
+	valid := `{"name":"Staple item","amount":725.5,"unit":"g","category":"Dry Goods","lowAt":200,"count":1.5,"countUnit":"bags","storage":"Storage shelf","recordedOn":"2026-09-29","notes":"Opened package"}`
+
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/inventory/staple-item", strings.NewReader(valid))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("PUT inventory status = %d: %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Inventory []map[string]json.RawMessage `json:"inventory"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode inventory response: %v", err)
+	}
+	item := body.Inventory[len(body.Inventory)-1]
+	for _, key := range []string{"id", "name", "amount", "unit", "category", "lowAt", "count", "countUnit", "storage", "recordedOn", "notes"} {
+		if _, ok := item[key]; !ok {
+			t.Errorf("inventory response missing %q: %#v", key, item)
+		}
+	}
+
+	for _, invalid := range []string{
+		`{"name":"Food","amount":1,"unit":"g","category":"Pantry","lowAt":0,"count":2}`,
+		`{"name":"Food","amount":1,"unit":"g","category":"Pantry","lowAt":0,"recordedOn":"2026/09/29"}`,
+		`{"name":"Food","amount":1,"unit":"g","category":"Pantry","lowAt":0,"private":true}`,
+	} {
+		request = httptest.NewRequest(http.MethodPut, "/api/v1/inventory/rejected", strings.NewReader(invalid))
+		request.Header.Set("Content-Type", "application/json")
+		rejected := httptest.NewRecorder()
+		handler.ServeHTTP(rejected, request)
+		if rejected.Code != http.StatusBadRequest {
+			t.Errorf("invalid inventory status = %d: %s", rejected.Code, rejected.Body.String())
+		}
+	}
+	for _, stored := range memory.Snapshot().Inventory {
+		if stored.ID == "rejected" {
+			t.Fatalf("rejected inventory mutation was stored")
+		}
 	}
 }
 

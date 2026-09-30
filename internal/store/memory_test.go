@@ -8,11 +8,27 @@ import (
 )
 
 func TestMemorySnapshotsAreIsolatedAndFailedUpdatesRollBack(t *testing.T) {
-	memory := NewMemory(domain.State{Inventory: []domain.InventoryItem{{ID: "rice", Amount: 3}}})
+	height := 170.0
+	count := 2.0
+	memory := NewMemory(domain.State{
+		Household: domain.Household{
+			Members:     []domain.HouseholdMember{{ID: "member", Name: "Member", HeightCm: &height, Notes: []string{"Original note"}}},
+			Preferences: []string{"Original preference"},
+		},
+		Inventory: []domain.InventoryItem{{ID: "rice", Amount: 3, Count: &count}},
+	})
 	snapshot := memory.Snapshot()
 	snapshot.Inventory[0].Amount = 0
+	*snapshot.Inventory[0].Count = 0
+	*snapshot.Household.Members[0].HeightCm = 0
+	snapshot.Household.Members[0].Notes[0] = "Changed note"
+	snapshot.Household.Preferences[0] = "Changed preference"
 	if got := memory.Snapshot().Inventory[0].Amount; got != 3 {
 		t.Fatalf("mutating snapshot changed stored amount to %v", got)
+	}
+	stored := memory.Snapshot()
+	if *stored.Inventory[0].Count != 2 || *stored.Household.Members[0].HeightCm != 170 || stored.Household.Members[0].Notes[0] != "Original note" || stored.Household.Preferences[0] != "Original preference" {
+		t.Fatalf("mutating snapshot changed nested metadata: %#v", stored)
 	}
 
 	wantErr := errors.New("stop")
