@@ -126,12 +126,22 @@ func (s *Server) deleteInventory(response http.ResponseWriter, request *http.Req
 }
 
 func (s *Server) generateRecommendations(response http.ResponseWriter, request *http.Request) {
+	var input struct {
+		Locale string `json:"locale"`
+	}
+	if !decodeBody(response, request, &input) {
+		return
+	}
+	if !agent.SupportedLocale(input.Locale) {
+		writeCapabilityError(response, http.StatusBadRequest, "unsupported_locale", "Supported locales are en and zh-CN.")
+		return
+	}
 	if s.agent == nil {
 		writeCapabilityError(response, http.StatusServiceUnavailable, "ai_recommendations_unavailable", "AI meal recommendations aren't available yet. You can still explore and manage your kitchen.")
 		return
 	}
 	state := s.service.State()
-	meals, err := s.agent.Recommend(request.Context(), agent.Context{Household: state.Household, Inventory: state.Inventory, History: state.History})
+	meals, err := s.agent.Recommend(request.Context(), agent.Context{Locale: input.Locale, Household: state.Household, Inventory: state.Inventory, History: state.History})
 	if err != nil {
 		writeCapabilityError(response, http.StatusBadGateway, "ai_recommendation_failed", "We couldn't generate new meal recommendations right now. Your current meals are unchanged; please try again.")
 		return
@@ -330,6 +340,7 @@ type ingredientResponse struct {
 }
 
 type mealResponse struct {
+	Locale      string               `json:"locale"`
 	ID          string               `json:"id"`
 	Name        string               `json:"name"`
 	Description string               `json:"description"`
@@ -385,7 +396,7 @@ func mealResponsesFrom(meals []domain.Meal) []mealResponse {
 	result := make([]mealResponse, len(meals))
 	for i, meal := range meals {
 		result[i] = mealResponse{
-			ID: meal.ID, Name: meal.Name, Description: meal.Description, Reason: meal.Reason, Emoji: meal.Emoji,
+			Locale: meal.Locale, ID: meal.ID, Name: meal.Name, Description: meal.Description, Reason: meal.Reason, Emoji: meal.Emoji,
 			Accent: meal.Accent, Minutes: meal.Minutes, Difficulty: meal.Difficulty,
 			Tags: append([]string{}, meal.Tags...), Steps: append([]string{}, meal.Steps...),
 			Ingredients: make([]ingredientResponse, len(meal.Ingredients)),

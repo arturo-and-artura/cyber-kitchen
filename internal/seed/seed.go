@@ -21,7 +21,8 @@ func InitialState() domain.State {
 		},
 		Meals: []domain.Meal{
 			{
-				ID: "miso-salmon", Name: "Miso-glazed salmon bowls",
+				Locale: "en",
+				ID:     "miso-salmon", Name: "Miso-glazed salmon bowls",
 				Description: "Caramelized salmon, sesame greens, brown rice, and a bright cucumber crunch.",
 				Reason:      "Uses the salmon and cucumber that need attention first, while supporting your high-protein goal.",
 				Emoji:       "🍱", Accent: "coral", Minutes: 30, Difficulty: "Easy",
@@ -42,7 +43,8 @@ func InitialState() domain.State {
 				},
 			},
 			{
-				ID: "chickpea-pasta", Name: "Creamy lemon chickpea pasta",
+				Locale: "en",
+				ID:     "chickpea-pasta", Name: "Creamy lemon chickpea pasta",
 				Description: "Silky lemon sauce, chickpeas, spinach, and plenty of fresh herbs.",
 				Reason:      "A low-effort pantry dinner with no dairy, peanuts, or complicated prep — ideal for a busy night.",
 				Emoji:       "🍋", Accent: "yellow", Minutes: 22, Difficulty: "Easy",
@@ -62,7 +64,8 @@ func InitialState() domain.State {
 				},
 			},
 			{
-				ID: "taco-tray", Name: "Smoky chicken taco tray",
+				Locale: "en",
+				ID:     "taco-tray", Name: "Smoky chicken taco tray",
 				Description: "Sheet-pan chicken and peppers with warm tortillas and avocado-lime salsa.",
 				Reason:      "A playful, family-style option for Friday that keeps every topping customizable at the table.",
 				Emoji:       "🌮", Accent: "green", Minutes: 35, Difficulty: "Medium",
